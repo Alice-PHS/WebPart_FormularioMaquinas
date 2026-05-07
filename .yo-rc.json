@@ -1,0 +1,19 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "useGulp": false,
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.19.0",
+    "sdksVersions": {},
+    "version": "1.22.2",
+    "libraryName": "web-part-formulario-maquinas",
+    "libraryId": "2db329e2-9b2a-478b-9989-bd875f8e4d73",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "WebPart_FormularioMaquinas",
+    "solutionShortDescription": "WebPart_FormularioMaquinas description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

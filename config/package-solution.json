@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "web-part-formulario-maquinas-client-side-solution",
+    "id": "2db329e2-9b2a-478b-9989-bd875f8e4d73",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.22.2"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "WebPart_FormularioMaquinas description"
+      },
+      "longDescription": {
+        "default": "WebPart_FormularioMaquinas description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "web-part-formulario-maquinas Feature",
+        "description": "The feature that activates elements of the web-part-formulario-maquinas solution.",
+        "id": "5fd58dfd-36ab-4209-bda5-3d8e42512f51",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/web-part-formulario-maquinas.sppkg"
+  }
+}
