@@ -1,124 +1,223 @@
 import * as React from 'react';
-import { useState } from 'react'; // Não esqueça de importar o useState
-import styles from './FormularioMaquinas.module.scss';
+import { useState } from 'react';
+import { makeStyles, themes } from './formStyles';
 
-export default function FormExclusao({ user, numeroChamado, nomeEmpresa }: { user: string, numeroChamado: string | null, nomeEmpresa: string }) {
-    // Controle de estado para as etapas do formulário
-    const [etapaAtual, setEtapaAtual] = useState(1);
-    const totalEtapas = 3; // O formulário de exclusão tem 3 seções principais
+interface ExclusionEntry { tag: string; additionalInfo: string; }
 
-    // Funções para navegar entre as etapas
-    const avancarEtapa = () => {
-        if (etapaAtual < totalEtapas) setEtapaAtual(etapaAtual + 1);
-    };
+export default function FormExclusao({ user, numeroChamado, nomeEmpresa }: { user: string; numeroChamado: string | null; nomeEmpresa: string }) {
+  const theme = themes.exclusao;
+  const S = makeStyles(theme);
 
-    const voltarEtapa = () => {
-        if (etapaAtual > 1) setEtapaAtual(etapaAtual - 1);
-    };
+  const [step, setStep] = useState(1);
+  const totalSteps = 4;
+  const [showError, setShowError] = useState(false);
 
-    return (
-        <div className={`${styles.formularioMaquinas} ${styles.tipoExclusao}`}>
-            <div className={styles.formContainer}>
-                {/* ETAPA 1: Cabeçalho e Aviso Legal */}
-                {etapaAtual === 1 && (
-                    <>
-                        <div className={styles.headerCard}>
-                            <div className={styles.logoPHS}>
-                                <img src={require('../assets/../assets/LOGO PHS.png')} alt="PHS Brasil" />
-                            </div>
-                            <h1 className={styles.title}>SOLICITAÇÃO PARA EXCLUSÃO DE MÁQUINA EM GERENCIAMENTO</h1>
-                            <p className={styles.description}>
-                                Formulário necessário para que a equipe técnica da PHS Brasil possa efetivar a exclusão de uma ou mais máquinas em seu gerenciamento contínuo - e consequentemente exclusão em contrato desta(s).
-                            </p>
-                        </div>
+  const [formData, setFormData] = useState({
+    agreed: null as boolean | null,
+    requesterName: user || '',
+    companyName: nomeEmpresa || '',
+    ticketNumber: numeroChamado || '',
+    exclusions: [{ tag: '', additionalInfo: '' }] as ExclusionEntry[],
+  });
 
-                        <div className={styles.sectionCard}>
-                            <div className={styles.sectionTab}>Seção 1</div>
-                            <div className={styles.importantBox}>
-                                <h3 style={{ color: '#d13438' }}>IMPORTANTE</h3>
-                                <p>
-                                    A exclusão de máquinas do gerenciamento deve atender a alguns parâmetros previstos em contratos, são eles:<br />
-                                    <strong>&gt;</strong> Não ultrapassar o limite mínimo de máquinas em contrato - Quando da assinatura, o valor a ser pago tem como base o número de máquinas gerenciadas. Portanto há um número mínimo a ser considerado a qual será avaliado pelo departamento financeiro antes do prosseguimento do pedido.<br />
-                                    <strong>&gt;&gt;</strong> A máquina não pode ter sido incluída em contrato por um tempo inferior a 06 (seis) meses.
-                                </p>
-                            </div>
-                            <div className={styles.questionGroup}>
-                                <div className={styles.qLabel}>
-                                    <span className={styles.qNumber}>1</span>
-                                    Você leu o aviso fixado no início desta seção e assume estar ciente do propósito desta solicitação? *
-                                </div>
-                                <div className={styles.radioOptions}>
-                                    <label><input type="radio" name="q1" /> Sim, li e estou de acordo.</label>
-                                    <label><input type="radio" name="q1" /> Não li ou não estou de acordo.</label>
-                                </div>
-                            </div>
-                        </div>
-                    </>
-                )}
+  const update = (field: string, value: unknown) => {
+    setFormData(p => ({ ...p, [field]: value }));
+    if (showError) setShowError(false);
+  };
 
-                {/* ETAPA 2: Qualificação do Solicitante */}
-                {etapaAtual === 2 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 2</div>
-                        <h2 className={styles.greenTitle}>QUALIFICAÇÃO DO SOLICITANTE</h2>
+  const updateExclusion = (i: number, field: string, value: string) => {
+    const arr = [...formData.exclusions];
+    arr[i] = { ...arr[i], [field]: value };
+    setFormData(p => ({ ...p, exclusions: arr }));
+    if (showError) setShowError(false);
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>2</span> Nome do solicitante *</div>
-                            <p className={styles.helpText}>Sponsor ou pessoa autorizada por ele</p>
-                            <input type="text" className={styles.formInput} placeholder="Insira sua resposta" defaultValue={user || ''}/>
-                        </div>
+  const addExclusion = () => setFormData(p => ({ ...p, exclusions: [...p.exclusions, { tag: '', additionalInfo: '' }] }));
+  const removeExclusion = (i: number) => {
+    if (formData.exclusions.length === 1) return;
+    setFormData(p => ({ ...p, exclusions: p.exclusions.filter((_, idx) => idx !== i) }));
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>3</span> Nome da empresa *</div>
-                            <input type="text" className={styles.formInput} placeholder="Insira sua resposta" defaultValue={nomeEmpresa || ''}/>
-                        </div>
+  const validate = (s: number) => {
+    if (s === 1) return formData.agreed === true;
+    if (s === 2) return formData.requesterName.trim() && formData.companyName.trim() && formData.ticketNumber.trim();
+    if (s === 3) return formData.exclusions.every(e => e.tag.trim());
+    return true;
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>4</span> Número do chamado *</div>
-                            <p className={styles.helpText}>Você pode verificar este número, junto ao cabeçalho do e-mail de registro do chamado.</p>
-                            <input type="text" className={styles.formInput} placeholder="O valor deve ser um número" defaultValue={numeroChamado || ''}/>
-                        </div>
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>5</span> Indique quais TAGS deverão ser excluídas *</div>
-                            <input type="text" className={styles.formInput} placeholder="Insira sua resposta" />
-                        </div>
-                    </div>
-                )}
+  const next = () => { if (validate(step)) { setShowError(false); setStep(s => s + 1); } else setShowError(true); };
+  const prev = () => { setShowError(false); setStep(s => s - 1); };
 
-                {/* ETAPA 3: Dados Técnicos / Finalização */}
-                {etapaAtual === 3 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 3</div>
-                        <div className={styles.importantBox}>
-                            <h3 style={{ color: '#d13438' }}>Não tenho certeza se quero excluir uma máquina do meu contrato</h3>
-                            <p>
-                                Se você não tem certeza se o equipamento deve ser excluído do contrato, consulte novamente nossos técnicos pelos nossos canais de comunicação:
-                                Whatsapp - (11) 3945-1934 (whatsapp web: <a href="https://wa.me/+551139451934" target="_blank" rel="noopener noreferrer">https://wa.me/+551139451934</a>) ou site: <a href="mailto:suporte@phsbrasil.com.br">suporte@phsbrasil.com.br</a>
-                            </p>
-                        </div>
-                    </div>
-                )}
+  const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (e.target.style.borderColor = theme.primary);
+  const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (e.target.style.borderColor = '#d1d5db');
 
-                {/* CONTROLES DE NAVEGAÇÃO (BOTÕES) */}
-                <div className={styles.navigationButtons}>
-                    {etapaAtual > 1 && (
-                        <button type="button" onClick={voltarEtapa} className={styles.btnVoltar}>
-                            VOLTAR
-                        </button>
-                    )}
+  return (
+    <div style={S.page}>
+      <div style={S.container}>
 
-                    {etapaAtual < totalEtapas ? (
-                        <button type="button" onClick={avancarEtapa} className={styles.btnAvancar}>
-                            AVANÇAR
-                        </button>
-                    ) : (
-                        <button type="submit" className={styles.btnSubmit}>
-                            ENVIAR FORMULÁRIO
-                        </button>
-                    )}
+        <div style={S.pageHeader}>
+          <div>
+            <p style={S.brandName}>PHS Brasil</p>
+            <p style={S.brandSub}>Exclusão de Equipamentos</p>
+          </div>
+          <span style={S.stepBadge}>Passo {step} de {totalSteps}</span>
+        </div>
+
+        <div style={S.progressTrack}>
+          <div style={{ height: '100%', width: `${(step / totalSteps) * 100}%`, background: theme.primary, borderRadius: '999px', transition: 'width 0.4s ease' }} />
+        </div>
+
+        <div style={S.card}>
+          <div style={S.cardBody}>
+
+            {/* STEP 1 */}
+            {step === 1 && (
+              <div>
+                <div style={S.alertBox}>
+                  <span style={{ fontSize: '22px', flexShrink: 0 }}>⚠️</span>
+                  <div>
+                    <p style={S.alertTitle}>Termo de Exclusão de Máquinas</p>
+                    <p style={S.alertText}>
+                      A exclusão de máquinas do gerenciamento deve atender a alguns parâmetros previstos em contrato:
+                    </p>
+                    <ul style={{ ...S.alertText, paddingLeft: '1.25rem', marginTop: '8px' }}>
+                      <li style={{ marginBottom: '6px' }}><strong>Não ultrapassar o limite mínimo:</strong> O valor pago baseia-se no número de máquinas. Há um número mínimo que será avaliado pelo departamento financeiro.</li>
+                      <li><strong>Carência mínima:</strong> A máquina não pode ter sido incluída no contrato há menos de <strong>06 (seis) meses</strong>.</li>
+                    </ul>
+                  </div>
                 </div>
 
-            </div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1.25rem' }}>
+                  <label style={{ ...S.label, marginBottom: '1rem' }}>
+                    Você leu o aviso acima e está ciente do propósito desta solicitação? <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <label style={S.radioCard(formData.agreed === true)}>
+                    <input type="radio" name="agreed" checked={formData.agreed === true} onChange={() => update('agreed', true)} style={{ accentColor: theme.primary }} />
+                    Sim, li e estou de acordo.
+                  </label>
+                  <label style={S.radioCard(formData.agreed === false && formData.agreed !== null)}>
+                    <input type="radio" name="agreed" checked={formData.agreed === false} onChange={() => { update('agreed', false); setShowError(true); }} />
+                    Não li ou não estou de acordo.
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 */}
+            {step === 2 && (
+              <div>
+                <p style={S.sectionTitle}>Qualificação do Solicitante</p>
+                <span style={S.sectionSub}>Informe os dados do Sponsor ou pessoa autorizada para esta exclusão.</span>
+
+                <div style={S.group}>
+                  <label style={S.label}>Nome do solicitante <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Sponsor ou pessoa autorizada por ele" value={formData.requesterName} onChange={e => update('requesterName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                </div>
+                <div style={S.group}>
+                  <label style={S.label}>Nome da empresa <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Sua Empresa LTDA" value={formData.companyName} onChange={e => update('companyName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                </div>
+                <div style={S.group}>
+                  <label style={S.label}>Número do chamado <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Ex: 95389" value={formData.ticketNumber} onChange={e => update('ticketNumber', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                  <span style={S.helpText}>Localizado no cabeçalho do e-mail de registro do chamado.</span>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 */}
+            {step === 3 && (
+              <div>
+                <p style={S.sectionTitle}>Máquinas para Exclusão</p>
+                <span style={S.sectionSub}>Indique as TAGs das máquinas que deverão ser retiradas do contrato.</span>
+
+                {formData.exclusions.map((exc, i) => (
+                  <div key={i} style={{ ...S.itemCard, borderColor: '#fecaca' }}>
+                    <div style={{ ...S.itemCardHeader, background: '#fef2f2', color: '#991b1b' }}>
+                      <span>🖥 Equipamento {i + 1}</span>
+                      {formData.exclusions.length > 1 && (
+                        <button onClick={() => removeExclusion(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
+                      )}
+                    </div>
+                    <div style={S.itemCardBody}>
+                      <div style={S.grid2}>
+                        <div>
+                          <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input style={S.input} type="text" placeholder="Ex: PC-05, LPT-10" value={exc.tag} onChange={e => updateExclusion(i, 'tag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        </div>
+                        <div>
+                          <label style={S.label}>Observações <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                          <input style={S.input} type="text" placeholder="Usuário anterior, departamento..." value={exc.additionalInfo} onChange={e => updateExclusion(i, 'additionalInfo', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button style={{ ...S.btnAddMore, borderColor: '#fca5a5', color: '#b91c1c' }} onClick={addExclusion}>
+                  ＋ Adicionar outra máquina para exclusão
+                </button>
+              </div>
+            )}
+
+            {/* STEP 4 — REVIEW */}
+            {step === 4 && (
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', color: '#dc2626', margin: '0 auto 12px' }}>✓</div>
+                  <p style={{ ...S.sectionTitle, textAlign: 'center' }}>Pronto para Solicitar Exclusão!</p>
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>Revise o resumo antes de enviar.</span>
+                </div>
+                <div style={S.reviewBox}>
+                  <div style={S.reviewHeader}>
+                    <div><span style={S.reviewLabel}>Solicitante</span><span style={S.reviewValue}>{formData.requesterName}</span></div>
+                    <div><span style={S.reviewLabel}>Empresa</span><span style={S.reviewValue}>{formData.companyName}</span></div>
+                    <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
+                  </div>
+                  <div style={{ background: '#fef2f2', padding: '10px 16px', borderBottom: '1px solid #fecaca' }}>
+                    <span style={{ ...S.reviewLabel, color: '#991b1b' }}>Total de máquinas a excluir: {formData.exclusions.length}</span>
+                  </div>
+                  {formData.exclusions.map((exc, i) => (
+                    <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '36px', height: '36px', background: '#fee2e2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🖥</div>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{exc.tag}</div>
+                          {exc.additionalInfo && <div style={{ fontSize: '12px', color: '#94a3b8' }}>{exc.additionalInfo}</div>}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '3px 10px', borderRadius: '999px' }}>A Excluir</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showError && step !== 1 && (
+              <div style={S.errorBanner}>⚠ Por favor, preencha todos os campos obrigatórios (*) antes de avançar.</div>
+            )}
+          </div>
+
+          <div style={S.cardFooter}>
+            {step > 1 ? <button style={S.btnPrev} onClick={prev}>← Voltar</button> : <div />}
+            {step < totalSteps ? (
+              <button style={S.btnNext} onClick={next}>Próximo →</button>
+            ) : (
+              <button style={{ ...S.btnSubmit, background: '#dc2626', boxShadow: '0 2px 8px #dc262655' }} onClick={() => alert('Formulário de EXCLUSÃO enviado com sucesso!')}>
+                Enviar Solicitação
+              </button>
+            )}
+          </div>
         </div>
-    );
+
+        <div style={S.helpFooter}>
+          <p style={{ marginBottom: '6px', fontWeight: 500, color: '#64748b' }}>Não tem certeza se o equipamento deve ser excluído?</p>
+          <a href="https://wa.me/+551139451934" target="_blank" rel="noopener noreferrer" style={{ color: '#16a34a', fontWeight: 500, marginRight: '16px' }}>WhatsApp (11) 3945-1934</a>
+          <a href="mailto:suporte@phsbrasil.com.br" style={{ color: theme.primary, fontWeight: 500 }}>suporte@phsbrasil.com.br</a>
+        </div>
+      </div>
+    </div>
+  );
 }

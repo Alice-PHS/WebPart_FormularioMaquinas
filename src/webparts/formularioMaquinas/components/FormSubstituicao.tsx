@@ -1,186 +1,317 @@
 import * as React from 'react';
 import { useState } from 'react';
-import styles from './FormularioMaquinas.module.scss';
+import { makeStyles, themes } from './formStyles';
 
-export default function FormSubstituicao({ user, numeroChamado, nomeEmpresa }: { user: string, numeroChamado: string | null, nomeEmpresa: string }) {
-    // Estado para controlar a página atual do formulário
-    const [etapaAtual, setEtapaAtual] = useState(1);
-    const totalEtapas = 5; // Este formulário possui 5 seções
+interface NewUser { name: string; email: string; department: string; }
+interface TransferDetails { files: string; programs: string; }
+interface Replacement {
+  oldTag: string; oldEmail: string; oldDepartment: string;
+  newAnyDesk: string; sameUser: boolean;
+  newUser: NewUser; needsTransfer: boolean; transferDetails: TransferDetails;
+}
 
-    // Funções de navegação
-    const avancarEtapa = () => {
-        if (etapaAtual < totalEtapas) setEtapaAtual(etapaAtual + 1);
-    };
+const blankReplacement = (): Replacement => ({
+  oldTag: '', oldEmail: '', oldDepartment: '', newAnyDesk: '', sameUser: true,
+  newUser: { name: '', email: '', department: '' }, needsTransfer: false, transferDetails: { files: '', programs: '' },
+});
 
-    const voltarEtapa = () => {
-        if (etapaAtual > 1) setEtapaAtual(etapaAtual - 1);
-    };
+export default function FormSubstituicao({ user, numeroChamado, nomeEmpresa }: { user: string; numeroChamado: string | null; nomeEmpresa: string }) {
+  const theme = themes.substituicao;
+  const S = makeStyles(theme);
 
-    return (
-        <div className={`${styles.formularioMaquinas} ${styles.tipoSubstituicao}`}>
-            <div className={styles.formContainer}>
-                {/* ETAPA 1: Cabeçalho e Importante */}
-                {etapaAtual === 1 && (
-                    <>
-                        <div className={styles.headerCard}>
-                            <div className={styles.logoPHS}>
-                                <img src={require('../assets/LOGO PHS.png')} alt="PHS Brasil" />
-                            </div>
-                            <h1 className={styles.title}>SOLICITAÇÃO PARA SUBSTITUIÇÃO DE MÁQUINAS EM GERENCIAMENTO</h1>
-                            <p className={styles.description}>
-                                Formulário necessário para que a equipe técnica da PHS Brasil possa efetivar a troca de uma ou mais máquinas em gerenciamento por outras novas que serão alçadas ao gerenciamento contínuo da PHS Brasil. E consequentemente tornarão as máquinas substituídas, itens não gerenciados.
-                            </p>
-                        </div>
+  const [step, setStep] = useState(1);
+  const totalSteps = 4;
+  const [showError, setShowError] = useState(false);
 
-                        <div className={styles.sectionCard}>
-                            <div className={styles.sectionTab}>Seção 1</div>
-                            <div className={styles.importantBox}>
-                                <h3>Importante</h3>
-                                <p>
-                                    Ao solicitar uma substituição de máquina em contrato, você entende que a máquina substituída será retirada de nosso gerenciamento. Bem como a máquina colocada em seu lugar, deve permanecer em nosso contrato por no mínimo 06 meses, sem possibilidade de exclusão e/ou substituição da mesma.
-                                </p>
-                            </div>
-                            <div className={styles.questionGroup}>
-                                <div className={styles.qLabel}>
-                                    <span className={styles.qNumber}>1</span>
-                                    Você leu o aviso fixado no início desta seção e assume estar ciente do propósito desta solicitação? *
-                                </div>
-                                <div className={styles.radioOptions}>
-                                    <label><input type="radio" name="q1" value="sim" /> Sim, li e estou de acordo.</label>
-                                    <label><input type="radio" name="q1" value="nao" /> Não li ou não estou de acordo.</label>
-                                </div>
-                            </div>
-                        </div>
-                    </>
-                )}
+  const [formData, setFormData] = useState({
+    agreed: null as boolean | null,
+    requesterName: user || '',
+    companyName: nomeEmpresa || '',
+    ticketNumber: numeroChamado || '',
+    replacements: [blankReplacement()],
+  });
 
-                {/* ETAPA 2: Qualificação do Solicitante */}
-                {etapaAtual === 2 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 2</div>
-                        <h2 className={styles.greenTitle}>QUALIFICAÇÃO DO SOLICITANTE</h2>
+  const update = (field: string, value: unknown) => { setFormData(p => ({ ...p, [field]: value })); if (showError) setShowError(false); };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>2</span> Nome do solicitante *</div>
-                            <p className={styles.helpText}>Sponsor ou pessoa autorizada por ele.</p>
-                            <input type="text" className={styles.formInput} placeholder="Insira sua resposta" defaultValue={user || ''}/>
-                        </div>
+  const updateRep = (i: number, field: string, value: unknown) => {
+    const arr = [...formData.replacements];
+    arr[i] = { ...arr[i], [field]: value };
+    setFormData(p => ({ ...p, replacements: arr }));
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>3</span> Nome da empresa *</div>
-                            <input type="text" className={styles.formInput} placeholder="Insira sua resposta" defaultValue={nomeEmpresa || ''}/>
-                        </div>
+  const updateNewUser = (i: number, field: string, value: string) => {
+    const arr = [...formData.replacements];
+    arr[i] = { ...arr[i], newUser: { ...arr[i].newUser, [field]: value } };
+    setFormData(p => ({ ...p, replacements: arr }));
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>4</span> Número do chamado *</div>
-                            <p className={styles.helpText}>Você pode verificar este número, junto ao cabeçalho do e-mail de registro do chamado.</p>
-                            <input type="text" className={styles.formInput} placeholder="O valor deve ser um número"  defaultValue={numeroChamado || ''}/>
-                        </div>
-                    </div>
-                )}
+  const updateTransfer = (i: number, field: string, value: string) => {
+    const arr = [...formData.replacements];
+    arr[i] = { ...arr[i], transferDetails: { ...arr[i].transferDetails, [field]: value } };
+    setFormData(p => ({ ...p, replacements: arr }));
+  };
 
-                {/* ETAPA 3: Dados das Substituições */}
-                {etapaAtual === 3 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 3</div>
-                        <h2 className={styles.greenTitle}>DADOS DA(S) SUBSTITUIÇÃO(ÕES)</h2>
-                        <p className={styles.helpText}>Aqui você deve fornecer os dados técnicos referente as máquinas a serem substituídas.</p>
+  const addReplacement = () => setFormData(p => ({ ...p, replacements: [...p.replacements, blankReplacement()] }));
+  const removeReplacement = (i: number) => {
+    if (formData.replacements.length === 1) return;
+    setFormData(p => ({ ...p, replacements: p.replacements.filter((_, idx) => idx !== i) }));
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>5</span> Quantidade de máquinas a serem substituídas? *</div>
-                            <div className={styles.radioOptions}>
-                                {['01', '02', '03', '04', '05', 'Superior a 05 máquinas'].map((opcao, index) => (
-                                    <label key={index}><input type="radio" name="q5" value={opcao} /> {opcao}</label>
-                                ))}
-                            </div>
-                        </div>
+  const validate = (s: number) => {
+    if (s === 1) return formData.agreed === true;
+    if (s === 2) return formData.requesterName.trim() && formData.companyName.trim() && formData.ticketNumber.trim();
+    if (s === 3) return formData.replacements.every(r => {
+      const oldOk = r.oldTag.trim() && r.oldEmail.trim() && r.oldDepartment.trim();
+      const newOk = r.sameUser || (r.newUser.name.trim() && r.newUser.email.trim() && r.newUser.department.trim());
+      return oldOk && newOk;
+    });
+    return true;
+  };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>6</span> TAG das máquinas a serem substituídas *</div>
-                            <p className={styles.helpText}>Separe com ponto-vírgula</p>
-                            <textarea className={styles.formInput} rows={3} placeholder="Insira sua resposta" />
-                        </div>
+  const next = () => { if (validate(step)) { setShowError(false); setStep(s => s + 1); } else setShowError(true); };
+  const prev = () => { setShowError(false); setStep(s => s - 1); };
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>7</span> E-mails *</div>
-                            <textarea className={styles.formInput} rows={3} placeholder="Insira sua resposta" />
-                        </div>
+  const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => (e.target.style.borderColor = theme.primary);
+  const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => (e.target.style.borderColor = '#d1d5db');
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>8</span> Departamentos *</div>
-                            <textarea className={styles.formInput} rows={3} placeholder="Insira sua resposta" />
-                        </div>
-                    </div>
-                )}
+  return (
+    <div style={S.page}>
+      <div style={S.container}>
 
-                {/* ETAPA 4: Dados das máquinas novas */}
-                {etapaAtual === 4 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 4</div>
-                        <h2 className={styles.greenTitle}>Dados das máquinas novas</h2>
-                        <p className={styles.helpText}>Aqui você informa os dados das máquinas que farão parte do gerenciamento</p>
+        <div style={S.pageHeader}>
+          <div>
+            <p style={S.brandName}>PHS Brasil</p>
+            <p style={S.brandSub}>Substituição de Equipamentos</p>
+          </div>
+          <span style={S.stepBadge}>Passo {step} de {totalSteps}</span>
+        </div>
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>9</span> AnyDesk da(s) máquina(s)</div>
-                            <p className={styles.helpText}>Caso não possua, pode encontrar o arquivo para downloads aqui: <a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer">https://anydesk.com/pt/downloads</a></p>
-                            <textarea className={styles.formInput} rows={2} placeholder="Insira sua resposta" />
-                        </div>
+        <div style={S.progressTrack}>
+          <div style={{ height: '100%', width: `${(step / totalSteps) * 100}%`, background: theme.primary, borderRadius: '999px', transition: 'width 0.4s ease' }} />
+        </div>
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>10</span> A(s) máquina(s) nova(s) será(ão) destinada(s) ao(s) mesmo(s) colaborador(es)? *</div>
-                            <select
-                                className={styles.formInput}
-                                defaultValue=""
-                                aria-label="A máquina nova será destinada ao mesmo colaborador?"
-                                title="Selecione se a máquina será destinada ao mesmo colaborador"
-                            >
-                                <option value="" disabled>Selecionar sua resposta</option>
-                                <option value="sim">Sim</option>
-                                <option value="nao">Não</option>
-                            </select>
-                        </div>
+        <div style={S.card}>
+          <div style={S.cardBody}>
 
-                        <div className={styles.questionGroup}>
-                            <div className={styles.qLabel}><span className={styles.qNumber}>11</span> Caso seja para outro colaborador, informe abaixo o nome completo, e-mail e departamento *</div>
-                            <textarea className={styles.formInput} rows={3} placeholder="Insira sua resposta" />
-                        </div>
-                    </div>
-                )}
-
-                {/* ETAPA 5: Suporte / Finalização */}
-                {etapaAtual === 5 && (
-                    <div className={styles.sectionCard}>
-                        <div className={styles.sectionTab}>Seção 5</div>
-                        <div className={styles.importantBox}>
-                            <h3 style={{ color: '#0078d4' }}>NÃO TENHO CERTEZA SE QUERO ADICIONAR OU SUBSTITUIR EQUIPAMENTO</h3>
-                            <p>
-                                Se você não tem certeza se quer adicionar nova máquina ou substituir máquina existente, consulte novamente nossos técnicos pelos nossos canais de comunicação:
-                                Whatsapp - (11) 3945-1934 (whatsapp web: <a href="https://wa.me/+551139451934" target="_blank" rel="noopener noreferrer">https://wa.me/+551139451934</a>) ou site: <a href="mailto:suporte@phsbrasil.com.br">suporte@phsbrasil.com.br</a>
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {/* CONTROLES DE NAVEGAÇÃO */}
-                <div className={styles.navigationButtons}>
-                    {etapaAtual > 1 && (
-                        <button type="button" onClick={voltarEtapa} className={styles.btnVoltar}>
-                            VOLTAR
-                        </button>
-                    )}
-
-                    {etapaAtual < totalEtapas ? (
-                        <button type="button" onClick={avancarEtapa} className={styles.btnAvancar}>
-                            AVANÇAR
-                        </button>
-                    ) : (
-                        <button type="submit" className={styles.btnSubmit}>
-                            ENVIAR FORMULÁRIO
-                        </button>
-                    )}
+            {/* STEP 1 */}
+            {step === 1 && (
+              <div>
+                <div style={S.alertBox}>
+                  <span style={{ fontSize: '22px', flexShrink: 0 }}>⚠️</span>
+                  <div>
+                    <p style={S.alertTitle}>Termo de Substituição</p>
+                    <p style={S.alertText}>
+                      Ao solicitar uma substituição, você entende que a <strong>máquina substituída (Antiga)</strong> será retirada de nosso gerenciamento.
+                      <br /><br />
+                      Bem como a <strong>máquina colocada em seu lugar (Nova)</strong> deve permanecer em nosso contrato por no mínimo <strong>06 meses</strong>, sem possibilidade de exclusão e/ou nova substituição da mesma.
+                    </p>
+                  </div>
                 </div>
 
-            </div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1.25rem' }}>
+                  <label style={{ ...S.label, marginBottom: '1rem' }}>
+                    Você leu o aviso acima e está ciente da política de carência (06 meses)? <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <label style={S.radioCard(formData.agreed === true)}>
+                    <input type="radio" name="agreed" checked={formData.agreed === true} onChange={() => update('agreed', true)} style={{ accentColor: theme.primary }} />
+                    Sim, li e estou de acordo.
+                  </label>
+                  <label style={S.radioCard(formData.agreed === false && formData.agreed !== null)}>
+                    <input type="radio" name="agreed" checked={formData.agreed === false} onChange={() => { update('agreed', false); setShowError(true); }} />
+                    Não li ou não estou de acordo.
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 */}
+            {step === 2 && (
+              <div>
+                <p style={S.sectionTitle}>Qualificação do Solicitante</p>
+                <span style={S.sectionSub}>Informe os dados do Sponsor ou pessoa autorizada para esta troca.</span>
+
+                <div style={S.group}>
+                  <label style={S.label}>Nome do solicitante <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Sponsor ou pessoa autorizada por ele" value={formData.requesterName} onChange={e => update('requesterName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                </div>
+                <div style={S.group}>
+                  <label style={S.label}>Nome da empresa <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Sua Empresa LTDA" value={formData.companyName} onChange={e => update('companyName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                </div>
+                <div style={S.group}>
+                  <label style={S.label}>Número do chamado <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input style={S.input} type="text" placeholder="Ex: 95389" value={formData.ticketNumber} onChange={e => update('ticketNumber', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                  <span style={S.helpText}>Localizado no cabeçalho do e-mail de registro do chamado.</span>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3 */}
+            {step === 3 && (
+              <div>
+                <p style={S.sectionTitle}>Mapeamento de Substituições</p>
+                <span style={S.sectionSub}>Vincule cada máquina antiga com a respectiva máquina nova.</span>
+
+                {formData.replacements.map((rep, i) => (
+                  <div key={i} style={S.itemCard}>
+                    <div style={S.itemCardHeader}>
+                      <span>🔄 Troca de Equipamento {i + 1}</span>
+                      {formData.replacements.length > 1 && (
+                        <button onClick={() => removeReplacement(i)} style={{ ...S.iconBtn, color: '#ef4444' }}>🗑</button>
+                      )}
+                    </div>
+                    <div style={S.itemCardBody}>
+                      {/* OLD MACHINE */}
+                      <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '8px' }}>
+                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🖥 1. Máquina que será retirada (Antiga)</p>
+                        <div style={S.grid3}>
+                          <div>
+                            <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
+                            <input style={S.input} type="text" placeholder="Ex: PC-05" value={rep.oldTag} onChange={e => updateRep(i, 'oldTag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          </div>
+                          <div>
+                            <label style={S.label}>E-mail do usuário <span style={{ color: '#ef4444' }}>*</span></label>
+                            <input style={S.input} type="email" placeholder="usuario@empresa.com" value={rep.oldEmail} onChange={e => updateRep(i, 'oldEmail', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          </div>
+                          <div>
+                            <label style={S.label}>Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                            <input style={S.input} type="text" placeholder="Ex: Financeiro" value={rep.oldDepartment} onChange={e => updateRep(i, 'oldDepartment', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ARROW */}
+                      <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
+
+                      {/* NEW MACHINE */}
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
+
+                        <div style={S.group}>
+                          <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                          <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={rep.newAnyDesk} onChange={e => updateRep(i, 'newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
+                        </div>
+
+                        <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
+                          <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button style={S.toggleBtn(rep.sameUser)} onClick={() => updateRep(i, 'sameUser', true)}>Sim, mesmo usuário</button>
+                            <button style={S.toggleBtn(!rep.sameUser, '#d97706')} onClick={() => updateRep(i, 'sameUser', false)}>Não, outro usuário</button>
+                          </div>
+
+                          {!rep.sameUser && (
+                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                              <div style={S.grid3}>
+                                <div>
+                                  <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
+                                  <input style={S.input} type="text" value={rep.newUser.name} onChange={e => updateNewUser(i, 'name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                </div>
+                                <div>
+                                  <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
+                                  <input style={S.input} type="email" value={rep.newUser.email} onChange={e => updateNewUser(i, 'email', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                </div>
+                                <div>
+                                  <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                                  <input style={S.input} type="text" value={rep.newUser.department} onChange={e => updateNewUser(i, 'department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* TRANSFER TOGGLE */}
+                        <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: rep.needsTransfer ? '12px' : '0' }}>
+                            <div>
+                              <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados da antiga?</span>
+                              <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
+                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: rep.needsTransfer ? theme.primary : '#64748b' }}>
+                              <input type="checkbox" checked={rep.needsTransfer} onChange={e => updateRep(i, 'needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
+                              {rep.needsTransfer ? 'Sim' : 'Não'}
+                            </label>
+                          </div>
+                          {rep.needsTransfer && (
+                            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                              <div style={S.grid2}>
+                                <div>
+                                  <label style={S.label}>Pastas / Arquivos específicos</label>
+                                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={rep.transferDetails.files} onChange={e => updateTransfer(i, 'files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                </div>
+                                <div>
+                                  <label style={S.label}>Softwares / Configurações</label>
+                                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={rep.transferDetails.programs} onChange={e => updateTransfer(i, 'programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button style={S.btnAddMore} onClick={addReplacement}>＋ Adicionar outra substituição</button>
+              </div>
+            )}
+
+            {/* STEP 4 — REVIEW */}
+            {step === 4 && (
+              <div>
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                  <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', margin: '0 auto 12px' }}>✓</div>
+                  <p style={{ ...S.sectionTitle, textAlign: 'center' }}>Pronto para Solicitar Substituição!</p>
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>Revise o resumo das trocas antes de enviar.</span>
+                </div>
+                <div style={S.reviewBox}>
+                  <div style={S.reviewHeader}>
+                    <div><span style={S.reviewLabel}>Solicitante</span><span style={S.reviewValue}>{formData.requesterName}</span></div>
+                    <div><span style={S.reviewLabel}>Empresa</span><span style={S.reviewValue}>{formData.companyName}</span></div>
+                    <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
+                  </div>
+                  {formData.replacements.map((rep, i) => (
+                    <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
+                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.oldTag || 'Sem TAG'}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{rep.oldEmail}</div>
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
+                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.sameUser ? 'Mesmo Usuário' : rep.newUser.name}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Transf. Dados: {rep.needsTransfer ? 'Sim' : 'Não'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {showError && step !== 1 && (
+              <div style={S.errorBanner}>⚠ Por favor, preencha todos os campos obrigatórios (*) antes de avançar.</div>
+            )}
+          </div>
+
+          <div style={S.cardFooter}>
+            {step > 1 ? <button style={S.btnPrev} onClick={prev}>← Voltar</button> : <div />}
+            {step < totalSteps ? (
+              <button style={S.btnNext} onClick={next}>Próximo →</button>
+            ) : (
+              <button style={S.btnSubmit} onClick={() => alert('Formulário de SUBSTITUIÇÃO enviado com sucesso!')}>
+                Enviar Solicitação
+              </button>
+            )}
+          </div>
         </div>
-    );
+
+        <div style={S.helpFooter}>
+          <p style={{ marginBottom: '6px', fontWeight: 500, color: '#64748b' }}>Não tem certeza se quer adicionar nova ou substituir?</p>
+          <a href="https://wa.me/+551139451934" target="_blank" rel="noopener noreferrer" style={{ color: '#16a34a', fontWeight: 500, marginRight: '16px' }}>WhatsApp (11) 3945-1934</a>
+          <a href="mailto:suporte@phsbrasil.com.br" style={{ color: theme.primary, fontWeight: 500 }}>suporte@phsbrasil.com.br</a>
+        </div>
+      </div>
+    </div>
+  );
 }
