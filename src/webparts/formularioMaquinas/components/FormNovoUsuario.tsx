@@ -10,6 +10,9 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
   const totalSteps = 4;
   const [showError, setShowError] = useState(false);
 
+  // NOVO ESTADO: Controle de exibição do pop-up de discordância
+  const [showDisagreePopup, setShowDisagreePopup] = useState(false);
+
   const [formData, setFormData] = useState({
     agreed: null as boolean | null,
     requesterName: user || '',
@@ -42,7 +45,21 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
     return true;
   };
 
-  const next = () => { if (validate(step)) { setShowError(false); setStep(s => s + 1); } else setShowError(true); };
+  const next = () => {
+    // 1. Adicione esta verificação bem no início da função
+    if (step === 1 && formData.agreed === false) {
+      setShowDisagreePopup(true);
+      return;
+    }
+
+    // 2. Mantenha o resto da função como já era
+    if (validate(step)) {
+      setShowError(false);
+      setStep(s => s + 1);
+    } else {
+      setShowError(true);
+    }
+  };
   const prev = () => { setShowError(false); setStep(s => s - 1); };
 
   const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => (e.target.style.borderColor = theme.primary);
@@ -90,8 +107,16 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
                     <input type="radio" name="agreed" checked={formData.agreed === true} onChange={() => update('agreed', true)} style={{ accentColor: theme.primary }} />
                     Sim, li e estou de acordo.
                   </label>
+
+                  {/* ATUALIZADO: Trigger do pop-up onChange */}
                   <label style={S.radioCard(formData.agreed === false && formData.agreed !== null)}>
-                    <input type="radio" name="agreed" checked={formData.agreed === false} onChange={() => { update('agreed', false); setShowError(true); }} />
+                    <input
+                      type="radio"
+                      name="agreed"
+                      checked={formData.agreed === false}
+                      // Só atualiza o estado agora, sem chamar o modal aqui
+                      onChange={() => update('agreed', false)}
+                    />
                     Não li ou não estou de acordo.
                   </label>
                 </div>
@@ -236,6 +261,67 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
           <a href="mailto:suporte@phsbrasil.com.br" style={{ color: theme.primary, fontWeight: 500 }}>suporte@phsbrasil.com.br</a>
         </div>
       </div>
+
+      {/* MODAL POP-UP DE AVISO (NOVO) */}
+      {showDisagreePopup && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#ffffff', borderRadius: '16px', padding: '2rem',
+            width: '90%', maxWidth: '450px', textAlign: 'center',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#0f172a', marginBottom: '1rem' }}>
+              Atenção
+            </h3>
+
+            <p style={{ color: '#475569', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+              Caro cliente,<br />
+              Você poderá nos consultar via atendimento para tratar quaisquer dúvidas referentes a este assunto.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.5rem' }}>
+              <a
+                href="mailto:sucessodocliente@phsbrasil.com.br"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: theme.primary, color: '#fff', textDecoration: 'none',
+                  padding: '12px', borderRadius: '8px', fontWeight: 500, fontSize: '0.95rem'
+                }}
+              >
+                ✉️ sucessodocliente@phsbrasil.com.br
+              </a>
+              <a
+                href="https://wa.me/551139451934"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#16a34a', color: '#fff', textDecoration: 'none',
+                  padding: '12px', borderRadius: '8px', fontWeight: 500, fontSize: '0.95rem'
+                }}
+              >
+                📱 WhatsApp: (11) 3945-1934
+              </a>
+            </div>
+
+            <button
+              onClick={() => setShowDisagreePopup(false)}
+              style={{
+                width: '100%', padding: '10px', background: '#f1f5f9', color: '#475569',
+                border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 600,
+                cursor: 'pointer', transition: 'background 0.2s'
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
