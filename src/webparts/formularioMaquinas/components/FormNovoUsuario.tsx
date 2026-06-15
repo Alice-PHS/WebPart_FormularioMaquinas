@@ -2,20 +2,24 @@ import * as React from 'react';
 import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
 
-export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { user: string; numeroChamado: string | null; nomeEmpresa: string }) {
+const FLOW_URL = 'https://defaulte8fc68b65d194bf4a2c1a5ed5dc4c2.f5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ee360285171e4f5f8091be3cd4e5c204/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Gj4na39slMDwQmm-UCzvgS9GX0-ODgN9DV0mMcaX1Wk';
+
+export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitanteEmail }: { numeroChamado: string; nomeEmpresa: string; solicitanteEmail: string }) {
   const theme = themes.novoUsuario;
   const S = makeStyles(theme);
 
   const [step, setStep] = useState(1);
   const totalSteps = 4;
   const [showError, setShowError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // NOVO ESTADO: Controle de exibição do pop-up de discordância
   const [showDisagreePopup, setShowDisagreePopup] = useState(false);
 
   const [formData, setFormData] = useState({
     agreed: null as boolean | null,
-    requesterName: user || '',
+    requesterName: '',
     companyName: nomeEmpresa || '',
     ticketNumber: numeroChamado || '',
     userNames: '',
@@ -36,7 +40,7 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
 
   const validate = (s: number) => {
     if (s === 1) return formData.agreed === true;
-    if (s === 2) return formData.requesterName.trim() && formData.companyName.trim() && formData.ticketNumber.trim();
+    if (s === 2) return formData.requesterName.trim();
     if (s === 3) return (
       formData.userNames.trim() && formData.emails.trim() && formData.departments.trim() &&
       formData.folders.trim() && formData.anyDeskId.trim() &&
@@ -61,6 +65,41 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
     }
   };
   const prev = () => { setShowError(false); setStep(s => s - 1); };
+
+  const handleSubmit = async () => {
+    const payload = {
+      tipoFormulario: 'novoUsuario',
+      solicitante: formData.requesterName,
+      solicitanteEmail: solicitanteEmail,
+      empresa: formData.companyName,
+      numeroChamado: formData.ticketNumber,
+      usuarios: formData.userNames,
+      emails: formData.emails,
+      departamentos: formData.departments,
+      especificacoesTecnicas: {
+        pastas: formData.folders,
+        teamViewer: formData.teamViewerId,
+        anyDesk: formData.anyDeskId,
+        programas: formData.programs,
+        impressoras: formData.printers,
+        loginReferencia: formData.referenceLogin,
+      },
+    };
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(FLOW_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      setSubmitStatus(res.ok ? 'success' : 'error');
+    } catch {
+      setSubmitStatus('error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => (e.target.style.borderColor = theme.primary);
   const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => (e.target.style.borderColor = '#d1d5db');
@@ -130,17 +169,20 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
                 <span style={S.sectionSub}>Sponsor ou pessoa autorizada por ele.</span>
 
                 <div style={S.group}>
-                  <label style={S.label}>Nome do solicitante <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={S.label}>Seu nome <span style={{ color: '#ef4444' }}>*</span></label>
                   <input style={S.input} type="text" placeholder="Nome completo" value={formData.requesterName} onChange={e => update('requesterName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div style={S.group}>
-                  <label style={S.label}>Nome da empresa <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input style={S.input} type="text" placeholder="Sua Empresa LTDA" value={formData.companyName} onChange={e => update('companyName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                  <label style={S.label}>E-mail</label>
+                  <input style={{ ...S.input, background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }} type="text" value={solicitanteEmail} readOnly />
                 </div>
                 <div style={S.group}>
-                  <label style={S.label}>Número do chamado <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input style={S.input} type="text" placeholder="Ex: 95389" value={formData.ticketNumber} onChange={e => update('ticketNumber', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                  <span style={S.helpText}>Você pode verificar este número junto ao cabeçalho do e-mail de registro do chamado.</span>
+                  <label style={S.label}>Nome da empresa</label>
+                  <input style={{ ...S.input, background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }} type="text" value={formData.companyName} readOnly />
+                </div>
+                <div style={S.group}>
+                  <label style={S.label}>Número do chamado</label>
+                  <input style={{ ...S.input, background: '#f1f5f9', color: '#64748b', cursor: 'not-allowed' }} type="text" value={formData.ticketNumber} readOnly />
                 </div>
               </div>
             )}
@@ -238,6 +280,9 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
               </div>
             )}
 
+            {submitStatus === 'error' && (
+              <div style={S.errorBanner}>⚠ Erro ao enviar. Tente novamente ou entre em contato com o suporte.</div>
+            )}
             {showError && step !== 1 && (
               <div style={S.errorBanner}>⚠ Por favor, preencha todos os campos obrigatórios (*) antes de avançar.</div>
             )}
@@ -248,9 +293,15 @@ export default function FormNovoUsuario({ user, numeroChamado, nomeEmpresa }: { 
             {step < totalSteps ? (
               <button style={S.btnNext} onClick={next}>Próximo →</button>
             ) : (
-              <button style={S.btnSubmit} onClick={() => alert('Formulário de NOVO USUÁRIO enviado com sucesso!')}>
-                Enviar Solicitação
-              </button>
+              submitStatus === 'success' ? (
+                <button style={{ ...S.btnSubmit, background: '#16a34a', cursor: 'default' }} disabled>
+                  ✓ Enviado com sucesso!
+                </button>
+              ) : (
+                <button style={{ ...S.btnSubmit, opacity: submitting ? 0.7 : 1 }} onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
+                </button>
+              )
             )}
           </div>
         </div>
