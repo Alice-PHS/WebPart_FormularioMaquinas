@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
+import { isValidEmail } from './validation';
 
 const FLOW_URL = 'https://defaulte8fc68b65d194bf4a2c1a5ed5dc4c2.f5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ee360285171e4f5f8091be3cd4e5c204/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Gj4na39slMDwQmm-UCzvgS9GX0-ODgN9DV0mMcaX1Wk';
-
+//make.powerautomate.com/environments/Default-e8fc68b6-5d19-4bf4-a2c1-a5ed5dc4c2f5/flows/2dea46ba-606d-4217-8319-ed9c39d7ff19
 interface UserEntry { name: string; email: string; department: string; }
 interface TransferData {
   oldMachineName: string; filesToTransfer: string;
@@ -60,8 +61,8 @@ export default function FormInclusao({ numeroChamado, nomeEmpresa, solicitanteEm
   const validate = (s: number) => {
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
-    if (s === 3) return formData.users.every(u => u.name.trim() && u.email.trim() && u.department.trim());
-    if (s === 4) return formData.folders.trim() && formData.programs.trim() && formData.printers.trim() && formData.referenceLogin.trim();
+    if (s === 3) return formData.users.every(u => u.name.trim() && u.email.trim() && isValidEmail(u.email) && u.department.trim());
+    if (s === 4) return formData.folders.trim() && formData.programs.trim() && formData.referenceLogin.trim();
     if (s === 5) return !formData.needsTransfer || formData.transferData.oldMachineName.trim();
     return true;
   };
@@ -247,7 +248,18 @@ export default function FormInclusao({ numeroChamado, nomeEmpresa, solicitanteEm
                       <div style={S.grid2}>
                         <div>
                           <label style={S.label}>E-mail <span style={{ color: '#ef4444' }}>*</span></label>
-                          <input style={S.input} type="email" placeholder="joao@empresa.com.br" value={u.email} onChange={e => updateUser(i, 'email', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          <input
+                            style={{ ...S.input, borderColor: showError && u.email.trim() && !isValidEmail(u.email) ? '#ef4444' : undefined }}
+                            type="email"
+                            placeholder="joao@empresa.com.br"
+                            value={u.email}
+                            onChange={e => updateUser(i, 'email', e.target.value)}
+                            onFocus={inputFocus}
+                            onBlur={inputBlur}
+                          />
+                          {showError && u.email.trim() && !isValidEmail(u.email) && (
+                            <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                          )}
                         </div>
                         <div>
                           <label style={S.label}>Departamento <span style={{ color: '#ef4444' }}>*</span></label>
@@ -292,7 +304,7 @@ export default function FormInclusao({ numeroChamado, nomeEmpresa, solicitanteEm
                   <textarea style={{ ...S.textarea, minHeight: '60px' }} rows={2} placeholder="Ex: Pacote Office, Emissor de NF, Certificados Digitais..." value={formData.programs} onChange={e => update('programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div style={S.group}>
-                  <label style={S.label}>Quais impressoras serão utilizadas? <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={S.label}>Quais impressoras serão utilizadas? </label>
                   <input style={S.input} type="text" placeholder="Ex: Impressora HP RH, Plotter Engenharia" value={formData.printers} onChange={e => update('printers', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div style={{ ...S.group, background: theme.primaryLight, border: `1px solid ${theme.primaryLighter}`, borderRadius: '10px', padding: '1rem' }}>

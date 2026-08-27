@@ -3,10 +3,24 @@ import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
 
 const FLOW_URL = 'https://defaulte8fc68b65d194bf4a2c1a5ed5dc4c2.f5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ee360285171e4f5f8091be3cd4e5c204/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Gj4na39slMDwQmm-UCzvgS9GX0-ODgN9DV0mMcaX1Wk';
+//make.powerautomate.com/environments/Default-e8fc68b6-5d19-4bf4-a2c1-a5ed5dc4c2f5/flows/2dea46ba-606d-4217-8319-ed9c39d7ff19
 
-interface ExclusionEntry { tag: string; additionalInfo: string; }
+interface ExclusionEntry { tag: string; additionalInfo: string; hostname?: string; equCodigo?: string; }
 
-export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEmail }: { numeroChamado: string; nomeEmpresa: string; solicitanteEmail: string }) {
+interface MaquinaLote { tag: string; hostname: string; equCodigo: number | null; departamento: string; }
+
+interface FormExclusaoProps {
+  numeroChamado: string;
+  nomeEmpresa: string;
+  solicitanteEmail: string;
+  tag?: string;
+  hostname?: string;
+  equCodigo?: string;
+  departamento?: string;
+  maquinas?: MaquinaLote[];
+}
+
+export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEmail, tag, hostname, equCodigo, maquinas }: FormExclusaoProps) {
   const theme = themes.exclusao;
   const S = makeStyles(theme);
 
@@ -19,13 +33,24 @@ export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEm
   // NOVO ESTADO: Controle de exibição do pop-up de discordância
   const [showDisagreePopup, setShowDisagreePopup] = useState(false);
 
+  // LOTE: 2+ máquinas vieram selecionadas na tabela do PAG
+  const isLote = !!maquinas && maquinas.length >= 2;
+  const maquinaPreSelecionada = !isLote && !!(tag || hostname || equCodigo);
+
+  const [loteMaquinas, setLoteMaquinas] = useState<MaquinaLote[]>(isLote ? maquinas as MaquinaLote[] : []);
+
   const [formData, setFormData] = useState({
     agreed: null as boolean | null,
     requesterName: '',
     companyName: nomeEmpresa || '',
     ticketNumber: numeroChamado || '',
-    exclusions: [{ tag: '', additionalInfo: '' }] as ExclusionEntry[],
+    exclusions: [{ tag: tag || '', additionalInfo: '', hostname: hostname || '', equCodigo: equCodigo || '' }] as ExclusionEntry[],
   });
+
+  const removeLoteMaquina = (i: number) => {
+    if (loteMaquinas.length === 1) return;
+    setLoteMaquinas(prev => prev.filter((_, idx) => idx !== i));
+  };
 
   const update = (field: string, value: unknown) => {
     setFormData(p => ({ ...p, [field]: value }));
@@ -48,7 +73,7 @@ export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEm
   const validate = (s: number) => {
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
-    if (s === 3) return formData.exclusions.every(e => e.tag.trim());
+    if (s === 3) return isLote ? loteMaquinas.length > 0 : formData.exclusions.every(e => e.tag.trim());
     return true;
   };
 
@@ -70,16 +95,18 @@ export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEm
   const prev = () => { setShowError(false); setStep(s => s - 1); };
 
   const handleSubmit = async () => {
+    const maquinasPayload = isLote
+      ? loteMaquinas.map(m => ({ tag: m.tag, observacoes: '', hostname: m.hostname || '', equCodigo: m.equCodigo !== null ? String(m.equCodigo) : '' }))
+      : formData.exclusions.map(e => ({ tag: e.tag, observacoes: e.additionalInfo, hostname: e.hostname || '', equCodigo: e.equCodigo || '' }));
+
     const payload = {
       tipoFormulario: 'exclusao',
       solicitante: formData.requesterName,
       solicitanteEmail: solicitanteEmail,
       empresa: formData.companyName,
       numeroChamado: formData.ticketNumber,
-      maquinas: formData.exclusions.map(e => ({
-        tag: e.tag,
-        observacoes: e.additionalInfo,
-      })),
+      maquinas: maquinasPayload,
+      resumoMaquinas: maquinasPayload.map(m => `TAG: ${m.tag} / Host: ${m.hostname}`).join('; '),
     };
 
     setSubmitting(true);
@@ -193,32 +220,58 @@ export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEm
                 <p style={S.sectionTitle}>Máquinas para Exclusão</p>
                 <span style={S.sectionSub}>Indique as TAGs das máquinas que deverão ser retiradas do contrato.</span>
 
-                {formData.exclusions.map((exc, i) => (
-                  <div key={i} style={{ ...S.itemCard, borderColor: '#fecaca' }}>
-                    <div style={{ ...S.itemCardHeader, background: '#fef2f2', color: '#991b1b' }}>
-                      <span>🖥 Equipamento {i + 1}</span>
-                      {formData.exclusions.length > 1 && (
-                        <button onClick={() => removeExclusion(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
-                      )}
+                {maquinaPreSelecionada && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '13px', color: '#991b1b' }}>
+                    ℹ Identificação pré-preenchida a partir da máquina selecionada. Você pode editar se necessário.
+                  </div>
+                )}
+
+                {isLote ? (
+                  <>
+                    <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '13px', color: '#991b1b' }}>
+                      ℹ {loteMaquinas.length} máquinas selecionadas para exclusão. Remova alguma da lista se necessário.
                     </div>
-                    <div style={S.itemCardBody}>
-                      <div style={S.grid2}>
-                        <div>
-                          <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
-                          <input style={S.input} type="text" placeholder="Ex: PC-05, LPT-10" value={exc.tag} onChange={e => updateExclusion(i, 'tag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                        </div>
-                        <div>
-                          <label style={S.label}>Observações <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
-                          <input style={S.input} type="text" placeholder="Usuário anterior, departamento..." value={exc.additionalInfo} onChange={e => updateExclusion(i, 'additionalInfo', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                    {loteMaquinas.map((m, i) => (
+                      <div key={`${m.tag}-${i}`} style={{ ...S.itemCard, borderColor: '#fecaca' }}>
+                        <div style={{ ...S.itemCardHeader, background: '#fef2f2', color: '#991b1b' }}>
+                          <span>🖥 {m.tag || 'Sem TAG'}{m.hostname ? ` — ${m.hostname}` : ''}{m.departamento ? ` (${m.departamento})` : ''}</span>
+                          {loteMaquinas.length > 1 && (
+                            <button onClick={() => removeLoteMaquina(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {formData.exclusions.map((exc, i) => (
+                      <div key={i} style={{ ...S.itemCard, borderColor: '#fecaca' }}>
+                        <div style={{ ...S.itemCardHeader, background: '#fef2f2', color: '#991b1b' }}>
+                          <span>🖥 Equipamento {i + 1}</span>
+                          {formData.exclusions.length > 1 && (
+                            <button onClick={() => removeExclusion(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
+                          )}
+                        </div>
+                        <div style={S.itemCardBody}>
+                          <div style={S.grid2}>
+                            <div>
+                              <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
+                              <input style={S.input} type="text" placeholder="Ex: PC-05, LPT-10" value={exc.tag} onChange={e => updateExclusion(i, 'tag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                            </div>
+                            <div>
+                              <label style={S.label}>Observações <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                              <input style={S.input} type="text" placeholder="Usuário anterior, departamento..." value={exc.additionalInfo} onChange={e => updateExclusion(i, 'additionalInfo', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
 
-                <button style={{ ...S.btnAddMore, borderColor: '#fca5a5', color: '#b91c1c' }} onClick={addExclusion}>
-                  ＋ Adicionar outra máquina para exclusão
-                </button>
+                    <button style={{ ...S.btnAddMore, borderColor: '#fca5a5', color: '#b91c1c' }} onClick={addExclusion}>
+                      ＋ Adicionar outra máquina para exclusão
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -237,15 +290,17 @@ export default function FormExclusao({ numeroChamado, nomeEmpresa, solicitanteEm
                     <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
                   </div>
                   <div style={{ background: '#fef2f2', padding: '10px 16px', borderBottom: '1px solid #fecaca' }}>
-                    <span style={{ ...S.reviewLabel, color: '#991b1b' }}>Total de máquinas a excluir: {formData.exclusions.length}</span>
+                    <span style={{ ...S.reviewLabel, color: '#991b1b' }}>Total de máquinas a excluir: {isLote ? loteMaquinas.length : formData.exclusions.length}</span>
                   </div>
-                  {formData.exclusions.map((exc, i) => (
+                  {(isLote ? loteMaquinas : formData.exclusions).map((exc, i) => (
                     <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', background: '#fee2e2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>🖥</div>
                         <div>
                           <div style={{ fontWeight: 700, color: '#1e293b' }}>{exc.tag}</div>
-                          {exc.additionalInfo && <div style={{ fontSize: '12px', color: '#94a3b8' }}>{exc.additionalInfo}</div>}
+                          {isLote
+                            ? ((exc as MaquinaLote).hostname && <div style={{ fontSize: '12px', color: '#94a3b8' }}>{(exc as MaquinaLote).hostname}</div>)
+                            : ((exc as ExclusionEntry).additionalInfo && <div style={{ fontSize: '12px', color: '#94a3b8' }}>{(exc as ExclusionEntry).additionalInfo}</div>)}
                         </div>
                       </div>
                       <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '3px 10px', borderRadius: '999px' }}>A Excluir</span>

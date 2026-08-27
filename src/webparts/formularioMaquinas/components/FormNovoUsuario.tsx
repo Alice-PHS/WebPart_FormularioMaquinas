@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
+import { isValidEmailList } from './validation';
 
 const FLOW_URL = 'https://defaulte8fc68b65d194bf4a2c1a5ed5dc4c2.f5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ee360285171e4f5f8091be3cd4e5c204/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Gj4na39slMDwQmm-UCzvgS9GX0-ODgN9DV0mMcaX1Wk';
+//make.powerautomate.com/environments/Default-e8fc68b6-5d19-4bf4-a2c1-a5ed5dc4c2f5/flows/2dea46ba-606d-4217-8319-ed9c39d7ff19
 
 export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitanteEmail }: { numeroChamado: string; nomeEmpresa: string; solicitanteEmail: string }) {
   const theme = themes.novoUsuario;
@@ -42,9 +44,9 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
     if (s === 3) return (
-      formData.userNames.trim() && formData.emails.trim() && formData.departments.trim() &&
+      formData.userNames.trim() && formData.emails.trim() && isValidEmailList(formData.emails) && formData.departments.trim() &&
       formData.folders.trim() && formData.anyDeskId.trim() &&
-      formData.programs.trim() && formData.printers.trim() && formData.referenceLogin.trim()
+      formData.programs.trim() && formData.referenceLogin.trim()
     );
     return true;
   };
@@ -199,7 +201,18 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
                 </div>
                 <div style={S.group}>
                   <label style={S.label}>E-mail(s) <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira o(s) e-mail(s)" value={formData.emails} onChange={e => update('emails', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                  <textarea
+                    style={{ ...S.textarea, minHeight: '56px', borderColor: showError && formData.emails.trim() && !isValidEmailList(formData.emails) ? '#ef4444' : undefined }}
+                    rows={2}
+                    placeholder="Insira o(s) e-mail(s), separados por vírgula caso haja mais de um"
+                    value={formData.emails}
+                    onChange={e => update('emails', e.target.value)}
+                    onFocus={inputFocus}
+                    onBlur={inputBlur}
+                  />
+                  {showError && formData.emails.trim() && !isValidEmailList(formData.emails) && (
+                    <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>Um ou mais e-mails informados são inválidos.</span>
+                  )}
                 </div>
                 <div style={S.group}>
                   <label style={S.label}>Departamento(s) <span style={{ color: '#ef4444' }}>*</span></label>
@@ -227,7 +240,7 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
                   <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Emissor de NF, Certificados digitais..." value={formData.programs} onChange={e => update('programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div style={S.group}>
-                  <label style={S.label}>Quais impressoras serão utilizadas? <span style={{ color: '#ef4444' }}>*</span></label>
+                  <label style={S.label}>Quais impressoras serão utilizadas?</label>
                   <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira sua resposta" value={formData.printers} onChange={e => update('printers', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div style={{ ...S.group, background: theme.primaryLight, border: `1px solid ${theme.primaryLighter}`, borderRadius: '10px', padding: '1rem' }}>

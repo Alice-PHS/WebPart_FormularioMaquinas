@@ -8,12 +8,59 @@ import FormExclusao from './FormExclusao';
 import FormSubstituicao from './FormSubstituicao';
 import FormNovoUsuario from './FormNovoUsuario';
 
+const FULLSCREEN_STYLE: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  width: '100vw',
+  height: '100vh',
+  zIndex: 99999,
+  overflowY: 'auto',
+  boxSizing: 'border-box',
+};
+
+export interface IMaquinaLote {
+  tag: string;
+  hostname: string;
+  equCodigo: number | null;
+  departamento: string;
+}
+
+const normalizeMaquinas = (raw: unknown): IMaquinaLote[] => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((m: { tag?: unknown; hostname?: unknown; equCodigo?: unknown; departamento?: unknown }) => ({
+      tag: m?.tag ? String(m.tag) : '',
+      hostname: m?.hostname ? String(m.hostname) : '',
+      equCodigo: m?.equCodigo !== undefined && m?.equCodigo !== null && m?.equCodigo !== '' ? Number(m.equCodigo) : null,
+      departamento: m?.departamento ? String(m.departamento) : '',
+    }))
+    .filter(m => m.tag || m.hostname);
+};
+
+const parseMaquinasParam = (raw: string | null | undefined): IMaquinaLote[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw));
+    return normalizeMaquinas(parsed);
+  } catch (error) {
+    console.error('Erro ao decodificar o parâmetro maquinas:', error);
+    return [];
+  }
+};
+
+
 export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
   const [mode, setMode] = useState<string | null>(null);
   const [chamado, setChamado] = useState<string>('');
   const [nomeEmpresa, setNomeEmpresa] = useState<string>('');
   const [solicitanteEmail, setSolicitanteEmail] = useState<string>('');
-  
+  const [tag, setTag] = useState<string>('');
+  const [hostname, setHostname] = useState<string>('');
+  const [equCodigo, setEquCodigo] = useState<string>('');
+  const [departamento, setDepartamento] = useState<string>('');
+  const [maquinas, setMaquinas] = useState<IMaquinaLote[]>([]);
+
   // NOVO ESTADO: Controle de acesso
   const [isAuthorized, setIsAuthorized] = useState<boolean>(true);
 
@@ -37,6 +84,11 @@ export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
     let chamadoParam = params.get('chamado') || '';
     let clienteParam = params.get('cliente') || '';
     let emailParam = params.get('solicitanteEmail') || '';
+    let tagParam = params.get('tag') || '';
+    let hostnameParam = params.get('hostname') || '';
+    let equCodigoParam = params.get('equCodigo') || '';
+    let departamentoParam = params.get('departamento') || '';
+    let maquinasParam = parseMaquinasParam(params.get('maquinas'));
 
     if (payload) {
       try {
@@ -47,6 +99,16 @@ export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
         chamadoParam = data.chamado || chamadoParam;
         clienteParam = data.cliente || clienteParam;
         emailParam = data.solicitanteEmail || emailParam;
+        tagParam = data.tag || tagParam;
+        hostnameParam = data.hostname || hostnameParam;
+        equCodigoParam = data.equCodigo || equCodigoParam;
+        departamentoParam = data.departamento || departamentoParam;
+
+        if (data.maquinas) {
+          maquinasParam = Array.isArray(data.maquinas)
+            ? normalizeMaquinas(data.maquinas)
+            : parseMaquinasParam(data.maquinas);
+        }
       } catch (error) {
         console.error('Erro ao decodificar o payload Base64:', error);
       }
@@ -65,7 +127,12 @@ export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
     setMode(modeParam);
     setChamado(chamadoParam);
     setSolicitanteEmail(emailParam);
-    
+    setTag(tagParam);
+    setHostname(hostnameParam);
+    setEquCodigo(equCodigoParam);
+    setDepartamento(departamentoParam);
+    setMaquinas(maquinasParam);
+
     if (clienteParam) setNomeEmpresa(decodeURIComponent(clienteParam));
 
     if (window.history && window.history.replaceState) {
@@ -98,8 +165,8 @@ export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
     // CASO CONTRÁRIO, SEGUE O FLUXO NORMAL
     switch (mode) {
       case 'inclusao':     return <FormInclusao     numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} />;
-      case 'exclusao':     return <FormExclusao     numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} />;
-      case 'substituicao': return <FormSubstituicao numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} />;
+      case 'exclusao':     return <FormExclusao     numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} tag={tag} hostname={hostname} equCodigo={equCodigo} departamento={departamento} maquinas={maquinas} />;
+      case 'substituicao': return <FormSubstituicao numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} tag={tag} hostname={hostname} equCodigo={equCodigo} departamento={departamento} maquinas={maquinas} />;
       case 'novoUsuario':  return <FormNovoUsuario  numeroChamado={chamado} nomeEmpresa={nomeEmpresa} solicitanteEmail={solicitanteEmail} />;
       default:
         return (
@@ -114,7 +181,7 @@ export default function FormularioMaquinas(props: IFormularioMaquinasProps) {
   };
 
   return (
-    <div>
+    <div style={FULLSCREEN_STYLE}>
       <style>{`
         #sp-appBar, div[class^="appBar_"], #SuiteNavWrapper, #O365_NavHeader,
         div[class*="headerRow-"], div[data-automationid="MinimalHeader"],

@@ -1,23 +1,44 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
+import { isValidEmail } from './validation';
 
 const FLOW_URL = 'https://defaulte8fc68b65d194bf4a2c1a5ed5dc4c2.f5.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/ee360285171e4f5f8091be3cd4e5c204/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Gj4na39slMDwQmm-UCzvgS9GX0-ODgN9DV0mMcaX1Wk';
+//make.powerautomate.com/environments/Default-e8fc68b6-5d19-4bf4-a2c1-a5ed5dc4c2f5/flows/2dea46ba-606d-4217-8319-ed9c39d7ff19
 
 interface NewUser { name: string; email: string; department: string; }
 interface TransferDetails { files: string; programs: string; }
 interface Replacement {
-  oldTag: string; oldEmail: string; oldDepartment: string;
+  oldTag: string; oldEmail: string; oldDepartment: string; oldHostname?: string; oldEquCodigo?: string;
   newAnyDesk: string; sameUser: boolean;
   newUser: NewUser; needsTransfer: boolean; transferDetails: TransferDetails;
 }
 
 const blankReplacement = (): Replacement => ({
-  oldTag: '', oldEmail: '', oldDepartment: '', newAnyDesk: '', sameUser: true,
+  oldTag: '', oldEmail: '', oldDepartment: '', oldHostname: '', oldEquCodigo: '', newAnyDesk: '', sameUser: true,
   newUser: { name: '', email: '', department: '' }, needsTransfer: false, transferDetails: { files: '', programs: '' },
 });
 
-export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitanteEmail }: { numeroChamado: string; nomeEmpresa: string; solicitanteEmail: string }) {
+interface MaquinaLote { tag: string; hostname: string; equCodigo: number | null; departamento: string; }
+
+interface NewMachineShared { newAnyDesk: string; sameUser: boolean; newUser: NewUser; needsTransfer: boolean; transferDetails: TransferDetails; }
+
+const blankNewMachineShared = (): NewMachineShared => ({
+  newAnyDesk: '', sameUser: true, newUser: { name: '', email: '', department: '' }, needsTransfer: false, transferDetails: { files: '', programs: '' },
+});
+
+interface FormSubstituicaoProps {
+  numeroChamado: string;
+  nomeEmpresa: string;
+  solicitanteEmail: string;
+  tag?: string;
+  hostname?: string;
+  equCodigo?: string;
+  departamento?: string;
+  maquinas?: MaquinaLote[];
+}
+
+export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitanteEmail, tag, hostname, equCodigo, departamento, maquinas }: FormSubstituicaoProps) {
   const theme = themes.substituicao;
   const S = makeStyles(theme);
 
@@ -30,12 +51,28 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
   // Controle de exibição do pop-up de discordância
   const [showDisagreePopup, setShowDisagreePopup] = useState(false);
 
+  // LOTE: 2+ máquinas vieram selecionadas na tabela do PAG
+  const isLote = !!maquinas && maquinas.length >= 2;
+  const maquinaPreSelecionada = !isLote && !!(tag || hostname || equCodigo);
+
+  const [loteMaquinas, setLoteMaquinas] = useState<MaquinaLote[]>(isLote ? maquinas as MaquinaLote[] : []);
+  const [loteNewMachine, setLoteNewMachine] = useState<NewMachineShared>(blankNewMachineShared());
+
+  const removeLoteMaquina = (i: number) => {
+    if (loteMaquinas.length === 1) return;
+    setLoteMaquinas(prev => prev.filter((_, idx) => idx !== i));
+  };
+
+  const updateLoteNew = (field: string, value: unknown) => setLoteNewMachine(p => ({ ...p, [field]: value }));
+  const updateLoteNewUser = (field: string, value: string) => setLoteNewMachine(p => ({ ...p, newUser: { ...p.newUser, [field]: value } }));
+  const updateLoteTransfer = (field: string, value: string) => setLoteNewMachine(p => ({ ...p, transferDetails: { ...p.transferDetails, [field]: value } }));
+
   const [formData, setFormData] = useState({
     agreed: null as boolean | null,
     requesterName: '',
     companyName: nomeEmpresa || '',
     ticketNumber: numeroChamado || '',
-    replacements: [blankReplacement()],
+    replacements: [{ ...blankReplacement(), oldTag: tag || '', oldHostname: hostname || '', oldEquCodigo: equCodigo || '', oldDepartment: departamento || '' }] as Replacement[],
   });
 
   const update = (field: string, value: unknown) => { setFormData(p => ({ ...p, [field]: value })); if (showError) setShowError(false); };
@@ -67,11 +104,15 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
   const validate = (s: number) => {
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
-    if (s === 3) return formData.replacements.every(r => {
-      const oldOk = r.oldTag.trim() && r.oldEmail.trim() && r.oldDepartment.trim();
-      const newOk = r.sameUser || (r.newUser.name.trim() && r.newUser.email.trim() && r.newUser.department.trim());
-      return oldOk && newOk;
-    });
+    if (s === 3) return isLote
+      ? loteMaquinas.length > 0 && (loteNewMachine.sameUser || (
+        loteNewMachine.newUser.name.trim() && loteNewMachine.newUser.email.trim() && isValidEmail(loteNewMachine.newUser.email) && loteNewMachine.newUser.department.trim()
+      ))
+      : formData.replacements.every(r => {
+        const oldOk = r.oldTag.trim() && r.oldEmail.trim() && isValidEmail(r.oldEmail) && r.oldDepartment.trim();
+        const newOk = r.sameUser || (r.newUser.name.trim() && r.newUser.email.trim() && isValidEmail(r.newUser.email) && r.newUser.department.trim());
+        return oldOk && newOk;
+      });
     return true;
   };
 
@@ -93,17 +134,37 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
   const prev = () => { setShowError(false); setStep(s => s - 1); };
 
   const handleSubmit = async () => {
-    const payload = {
-      tipoFormulario: 'substituicao',
-      solicitante: formData.requesterName,
-      solicitanteEmail: solicitanteEmail,
-      empresa: formData.companyName,
-      numeroChamado: formData.ticketNumber,
-      substituicoes: formData.replacements.map(r => ({
+    const substituicoes = isLote
+      ? loteMaquinas.map(m => ({
+        maquinaAntiga: {
+          tag: m.tag,
+          emailUsuario: '',
+          departamento: '',
+          hostname: m.hostname || '',
+          equCodigo: m.equCodigo !== null ? String(m.equCodigo) : '',
+        },
+        maquinaNova: {
+          anyDesk: loteNewMachine.newAnyDesk,
+          mesmoUsuario: loteNewMachine.sameUser,
+          novoUsuario: loteNewMachine.sameUser ? null : {
+            nome: loteNewMachine.newUser.name,
+            email: loteNewMachine.newUser.email,
+            departamento: loteNewMachine.newUser.department,
+          },
+        },
+        transferenciaDados: {
+          necessaria: loteNewMachine.needsTransfer,
+          arquivos: loteNewMachine.transferDetails.files,
+          programas: loteNewMachine.transferDetails.programs,
+        },
+      }))
+      : formData.replacements.map(r => ({
         maquinaAntiga: {
           tag: r.oldTag,
           emailUsuario: r.oldEmail,
           departamento: r.oldDepartment,
+          hostname: r.oldHostname || '',
+          equCodigo: r.oldEquCodigo || '',
         },
         maquinaNova: {
           anyDesk: r.newAnyDesk,
@@ -119,7 +180,16 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
           arquivos: r.transferDetails.files,
           programas: r.transferDetails.programs,
         },
-      })),
+      }));
+
+    const payload = {
+      tipoFormulario: 'substituicao',
+      solicitante: formData.requesterName,
+      solicitanteEmail: solicitanteEmail,
+      empresa: formData.companyName,
+      numeroChamado: formData.ticketNumber,
+      substituicoes,
+      resumoMaquinas: substituicoes.map(s => `TAG: ${s.maquinaAntiga.tag} / Host: ${s.maquinaAntiga.hostname}`).join('; '),
     };
 
     setSubmitting(true);
@@ -228,107 +298,231 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
                 <p style={S.sectionTitle}>Mapeamento de Substituições</p>
                 <span style={S.sectionSub}>Vincule cada máquina antiga com a respectiva máquina nova.</span>
 
-                {formData.replacements.map((rep, i) => (
-                  <div key={i} style={S.itemCard}>
-                    <div style={S.itemCardHeader}>
-                      <span>🔄 Troca de Equipamento {i + 1}</span>
-                      {formData.replacements.length > 1 && (
-                        <button onClick={() => removeReplacement(i)} style={{ ...S.iconBtn, color: '#ef4444' }}>🗑</button>
-                      )}
-                    </div>
-                    <div style={S.itemCardBody}>
-                      {/* OLD MACHINE */}
-                      <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '8px' }}>
-                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🖥 1. Máquina que será retirada (Antiga)</p>
-                        <div style={S.grid3}>
-                          <div>
-                            <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
-                            <input style={S.input} type="text" placeholder="Ex: PC-05" value={rep.oldTag} onChange={e => updateRep(i, 'oldTag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                          </div>
-                          <div>
-                            <label style={S.label}>E-mail do usuário <span style={{ color: '#ef4444' }}>*</span></label>
-                            <input style={S.input} type="email" placeholder="usuario@empresa.com" value={rep.oldEmail} onChange={e => updateRep(i, 'oldEmail', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                          </div>
-                          <div>
-                            <label style={S.label}>Departamento <span style={{ color: '#ef4444' }}>*</span></label>
-                            <input style={S.input} type="text" placeholder="Ex: Financeiro" value={rep.oldDepartment} onChange={e => updateRep(i, 'oldDepartment', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ARROW */}
-                      <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
-
-                      {/* NEW MACHINE */}
-                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
-                        <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
-
-                        <div style={S.group}>
-                          <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
-                          <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={rep.newAnyDesk} onChange={e => updateRep(i, 'newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                          <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
-                        </div>
-
-                        <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
-                          <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
-                          <div style={{ display: 'flex', gap: '10px' }}>
-                            <button style={S.toggleBtn(rep.sameUser)} onClick={() => updateRep(i, 'sameUser', true)}>Sim, mesmo usuário</button>
-                            <button style={S.toggleBtn(!rep.sameUser, '#d97706')} onClick={() => updateRep(i, 'sameUser', false)}>Não, outro usuário</button>
-                          </div>
-
-                          {!rep.sameUser && (
-                            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                              <div style={S.grid3}>
-                                <div>
-                                  <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
-                                  <input style={S.input} type="text" value={rep.newUser.name} onChange={e => updateNewUser(i, 'name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                                </div>
-                                <div>
-                                  <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
-                                  <input style={S.input} type="email" value={rep.newUser.email} onChange={e => updateNewUser(i, 'email', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                                </div>
-                                <div>
-                                  <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
-                                  <input style={S.input} type="text" value={rep.newUser.department} onChange={e => updateNewUser(i, 'department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* TRANSFER TOGGLE */}
-                        <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: rep.needsTransfer ? '12px' : '0' }}>
-                            <div>
-                              <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados da antiga?</span>
-                              <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
-                            </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: rep.needsTransfer ? theme.primary : '#64748b' }}>
-                              <input type="checkbox" checked={rep.needsTransfer} onChange={e => updateRep(i, 'needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
-                              {rep.needsTransfer ? 'Sim' : 'Não'}
-                            </label>
-                          </div>
-                          {rep.needsTransfer && (
-                            <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                              <div style={S.grid2}>
-                                <div>
-                                  <label style={S.label}>Pastas / Arquivos específicos</label>
-                                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={rep.transferDetails.files} onChange={e => updateTransfer(i, 'files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                                </div>
-                                <div>
-                                  <label style={S.label}>Softwares / Configurações</label>
-                                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={rep.transferDetails.programs} onChange={e => updateTransfer(i, 'programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                {maquinaPreSelecionada && (
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '13px', color: '#9a3412' }}>
+                    ℹ Identificação pré-preenchida a partir da máquina selecionada. Você pode editar se necessário.
                   </div>
-                ))}
+                )}
 
-                <button style={S.btnAddMore} onClick={addReplacement}>＋ Adicionar outra substituição</button>
+                {isLote ? (
+                  <>
+                    <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '12px' }}>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🖥 1. Máquinas que serão retiradas (Antigas) — {loteMaquinas.length}</p>
+                      {loteMaquinas.map((m, i) => (
+                        <div key={`${m.tag}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', marginBottom: '8px' }}>
+                          <span style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}{m.hostname ? ` — ${m.hostname}` : ''}{m.departamento ? ` (${m.departamento})` : ''}</span>
+                          {loteMaquinas.length > 1 && (
+                            <button onClick={() => removeLoteMaquina(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* ARROW */}
+                    <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
+
+                    {/* NEW MACHINE (compartilhada para todas as máquinas do lote) */}
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
+
+                      <div style={S.group}>
+                        <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                        <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={loteNewMachine.newAnyDesk} onChange={e => updateLoteNew('newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
+                      </div>
+
+                      <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
+                        <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <button style={S.toggleBtn(loteNewMachine.sameUser)} onClick={() => updateLoteNew('sameUser', true)}>Sim, mesmo usuário</button>
+                          <button style={S.toggleBtn(!loteNewMachine.sameUser, '#d97706')} onClick={() => updateLoteNew('sameUser', false)}>Não, outro usuário</button>
+                        </div>
+
+                        {!loteNewMachine.sameUser && (
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                            <div style={S.grid3}>
+                              <div>
+                                <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input style={S.input} type="text" value={loteNewMachine.newUser.name} onChange={e => updateLoteNewUser('name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                              <div>
+                                <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input
+                                  style={{ ...S.input, borderColor: showError && loteNewMachine.newUser.email.trim() && !isValidEmail(loteNewMachine.newUser.email) ? '#ef4444' : undefined }}
+                                  type="email"
+                                  value={loteNewMachine.newUser.email}
+                                  onChange={e => updateLoteNewUser('email', e.target.value)}
+                                  onFocus={inputFocus}
+                                  onBlur={inputBlur}
+                                />
+                                {showError && loteNewMachine.newUser.email.trim() && !isValidEmail(loteNewMachine.newUser.email) && (
+                                  <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                                )}
+                              </div>
+                              <div>
+                                <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input style={S.input} type="text" value={loteNewMachine.newUser.department} onChange={e => updateLoteNewUser('department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* TRANSFER TOGGLE */}
+                      <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: loteNewMachine.needsTransfer ? '12px' : '0' }}>
+                          <div>
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados das antigas?</span>
+                            <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
+                          </div>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: loteNewMachine.needsTransfer ? theme.primary : '#64748b' }}>
+                            <input type="checkbox" checked={loteNewMachine.needsTransfer} onChange={e => updateLoteNew('needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
+                            {loteNewMachine.needsTransfer ? 'Sim' : 'Não'}
+                          </label>
+                        </div>
+                        {loteNewMachine.needsTransfer && (
+                          <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                            <div style={S.grid2}>
+                              <div>
+                                <label style={S.label}>Pastas / Arquivos específicos</label>
+                                <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={loteNewMachine.transferDetails.files} onChange={e => updateLoteTransfer('files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                              <div>
+                                <label style={S.label}>Softwares / Configurações</label>
+                                <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={loteNewMachine.transferDetails.programs} onChange={e => updateLoteTransfer('programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {formData.replacements.map((rep, i) => (
+                      <div key={i} style={S.itemCard}>
+                        <div style={S.itemCardHeader}>
+                          <span>🔄 Troca de Equipamento {i + 1}</span>
+                          {formData.replacements.length > 1 && (
+                            <button onClick={() => removeReplacement(i)} style={{ ...S.iconBtn, color: '#ef4444' }}>🗑</button>
+                          )}
+                        </div>
+                        <div style={S.itemCardBody}>
+                          {/* OLD MACHINE */}
+                          <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '8px' }}>
+                            <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🖥 1. Máquina que será retirada (Antiga)</p>
+                            <div style={S.grid3}>
+                              <div>
+                                <label style={S.label}>TAG / Patrimônio <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input style={S.input} type="text" placeholder="Ex: PC-05" value={rep.oldTag} onChange={e => updateRep(i, 'oldTag', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                              <div>
+                                <label style={S.label}>E-mail do usuário <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input
+                                  style={{ ...S.input, borderColor: showError && rep.oldEmail.trim() && !isValidEmail(rep.oldEmail) ? '#ef4444' : undefined }}
+                                  type="email"
+                                  placeholder="usuario@empresa.com"
+                                  value={rep.oldEmail}
+                                  onChange={e => updateRep(i, 'oldEmail', e.target.value)}
+                                  onFocus={inputFocus}
+                                  onBlur={inputBlur}
+                                />
+                                {showError && rep.oldEmail.trim() && !isValidEmail(rep.oldEmail) && (
+                                  <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                                )}
+                              </div>
+                              <div>
+                                <label style={S.label}>Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                                <input style={S.input} type="text" placeholder="Ex: Financeiro" value={rep.oldDepartment} onChange={e => updateRep(i, 'oldDepartment', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ARROW */}
+                          <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
+
+                          {/* NEW MACHINE */}
+                          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                            <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
+
+                            <div style={S.group}>
+                              <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                              <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={rep.newAnyDesk} onChange={e => updateRep(i, 'newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
+                            </div>
+
+                            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
+                              <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
+                              <div style={{ display: 'flex', gap: '10px' }}>
+                                <button style={S.toggleBtn(rep.sameUser)} onClick={() => updateRep(i, 'sameUser', true)}>Sim, mesmo usuário</button>
+                                <button style={S.toggleBtn(!rep.sameUser, '#d97706')} onClick={() => updateRep(i, 'sameUser', false)}>Não, outro usuário</button>
+                              </div>
+
+                              {!rep.sameUser && (
+                                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                                  <div style={S.grid3}>
+                                    <div>
+                                      <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
+                                      <input style={S.input} type="text" value={rep.newUser.name} onChange={e => updateNewUser(i, 'name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                    </div>
+                                    <div>
+                                      <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
+                                      <input
+                                        style={{ ...S.input, borderColor: showError && rep.newUser.email.trim() && !isValidEmail(rep.newUser.email) ? '#ef4444' : undefined }}
+                                        type="email"
+                                        value={rep.newUser.email}
+                                        onChange={e => updateNewUser(i, 'email', e.target.value)}
+                                        onFocus={inputFocus}
+                                        onBlur={inputBlur}
+                                      />
+                                      {showError && rep.newUser.email.trim() && !isValidEmail(rep.newUser.email) && (
+                                        <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                                      <input style={S.input} type="text" value={rep.newUser.department} onChange={e => updateNewUser(i, 'department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* TRANSFER TOGGLE */}
+                            <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: rep.needsTransfer ? '12px' : '0' }}>
+                                <div>
+                                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados da antiga?</span>
+                                  <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: rep.needsTransfer ? theme.primary : '#64748b' }}>
+                                  <input type="checkbox" checked={rep.needsTransfer} onChange={e => updateRep(i, 'needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
+                                  {rep.needsTransfer ? 'Sim' : 'Não'}
+                                </label>
+                              </div>
+                              {rep.needsTransfer && (
+                                <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                                  <div style={S.grid2}>
+                                    <div>
+                                      <label style={S.label}>Pastas / Arquivos específicos</label>
+                                      <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={rep.transferDetails.files} onChange={e => updateTransfer(i, 'files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                    </div>
+                                    <div>
+                                      <label style={S.label}>Softwares / Configurações</label>
+                                      <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={rep.transferDetails.programs} onChange={e => updateTransfer(i, 'programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <button style={S.btnAddMore} onClick={addReplacement}>＋ Adicionar outra substituição</button>
+                  </>
+                )}
               </div>
             )}
 
@@ -346,21 +540,37 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
                     <div><span style={S.reviewLabel}>Empresa</span><span style={S.reviewValue}>{formData.companyName}</span></div>
                     <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
                   </div>
-                  {formData.replacements.map((rep, i) => (
-                    <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
-                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.oldTag || 'Sem TAG'}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>{rep.oldEmail}</div>
+                  {isLote
+                    ? loteMaquinas.map((m, i) => (
+                      <div key={`${m.tag}-${i}`} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
+                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>{m.hostname}</div>
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
+                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{loteNewMachine.sameUser ? 'Mesmo Usuário' : loteNewMachine.newUser.name}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>Transf. Dados: {loteNewMachine.needsTransfer ? 'Sim' : 'Não'}</div>
+                        </div>
                       </div>
-                      <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
-                        <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.sameUser ? 'Mesmo Usuário' : rep.newUser.name}</div>
-                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>Transf. Dados: {rep.needsTransfer ? 'Sim' : 'Não'}</div>
+                    ))
+                    : formData.replacements.map((rep, i) => (
+                      <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
+                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.oldTag || 'Sem TAG'}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>{rep.oldEmail}</div>
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
+                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{rep.sameUser ? 'Mesmo Usuário' : rep.newUser.name}</div>
+                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>Transf. Dados: {rep.needsTransfer ? 'Sim' : 'Não'}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               </div>
             )}
