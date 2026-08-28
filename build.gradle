@@ -1,0 +1,63 @@
+plugins {
+	id 'java'
+	id 'war'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.github.node-gradle.node' version '7.1.0'
+}
+
+node {
+	version = '20.11.0'
+	download = true
+	nodeProjectDir = file("src/main/frontend")
+}
+
+tasks.register('npmBuild', com.github.gradle.node.npm.task.NpmTask) {
+	dependsOn tasks.named('npmInstall')
+	args = ['run', 'build']
+	inputs.dir('src/main/frontend/src')
+	inputs.file('src/main/frontend/package.json')
+	outputs.dir('src/main/frontend/build')
+}
+
+tasks.named('processResources') {
+	dependsOn tasks.named('npmBuild')
+	from('src/main/frontend/build') {
+		into 'static'
+	}
+}
+
+group = 'com.phsbrasil'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation("org.springframework.boot:spring-boot-starter-jdbc:4.1.0")
+	implementation 'com.mysql:mysql-connector-j:8.3.0'
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+	implementation 'com.azure:azure-identity:1.19.0-beta.2'
+	implementation 'com.microsoft.graph:microsoft-graph:6.67.0'
+	implementation 'org.springframework.security:spring-security-crypto'
+	implementation 'com.nimbusds:nimbus-jose-jwt:9.48'
+	providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat-runtime'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
+	runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
+	runtimeOnly 'com.h2database:h2'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

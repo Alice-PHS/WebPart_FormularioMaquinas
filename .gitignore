@@ -1,38 +1,51 @@
-# Logs
-logs
+# ===== Gradle =====
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# ===== Artefatos =====
+*.war
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# ===== IDE =====
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+bin/
+obj/
+.vs/
+.apt_generated/
+
+# ===== Frontend (src/main/frontend) =====
+node_modules/
+src/main/frontend/build/
+src/main/frontend/dist/
+src/main/frontend/*.local
+
+# ===== Segredos / ambiente =====
+.env
+.env.*
+!.env.example
+*.env.local
+src/main/frontend/.env
+application-local.properties
+
+# ===== Azure / deploy =====
+.azure/
+
+# ===== Logs / OS =====
+logs/
 *.log
 npm-debug.log*
-
-# Dependency directories
-node_modules
-
-# Build generated files
-dist
-lib
-lib-dts
-lib-commonjs
-lib-esm
-jest-output
-release
-solution
-temp
-*.sppkg
-.heft
-
-# Coverage directory used by tools like istanbul
-coverage
-
-# OSX
 .DS_Store
+Thumbs.db
 
-# Visual Studio files
-.ntvs_analysis.dat
-.vs
-bin
-obj
-
-# Resx Generated Code
-*.resx.ts
-
-# Styles Generated Code
-*.scss.ts
+application.properties
