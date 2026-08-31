@@ -25,7 +25,11 @@ public record SolicitacaoRequest(
 
     public record MaquinaItem(
             String nomeUsuario, String email, String departamento,
-            String tag, String observacoes, String hostname, String equCodigo
+            String tag, String observacoes, String hostname, String equCodigo,
+            // inclusao/novoUsuario: cada maquina traz o proprio bloco tecnico
+            // e a propria transferencia de dados.
+            EspecificacoesTecnicas especificacoesTecnicas,
+            TransferenciaDados transferenciaDados
     ) {}
 
     public record EspecificacoesTecnicas(

@@ -30,6 +30,40 @@ public final class ComentarioBuilder {
     }
 
     private static String inclusao(SolicitacaoRequest r) {
+        List<MaquinaItem> maquinas = safe(r.maquinas());
+        boolean porMaquina = maquinas.stream().anyMatch(i -> i.especificacoesTecnicas() != null);
+        if (!porMaquina) {
+            return inclusaoAgregada(r);
+        }
+
+        StringBuilder sb = new StringBuilder("Eu, ").append(s(r.solicitante()))
+                .append(", solicito a inclusão de ").append(maquinas.size())
+                .append(" máquina(s) ao contrato de gerenciamento de rede da empresa ")
+                .append(s(r.empresa())).append(".\n\nSeguem dados:\n\n");
+
+        for (int i = 0; i < maquinas.size(); i++) {
+            MaquinaItem item = maquinas.get(i);
+            EspecificacoesTecnicas e = item.especificacoesTecnicas() != null ? item.especificacoesTecnicas() : espec(r);
+            sb.append("MÁQUINA ").append(i + 1).append("\n")
+                    .append("Nome completo do usuário: ").append(s(item.nomeUsuario())).append("\n")
+                    .append("E-mail: ").append(s(item.email())).append("\n")
+                    .append("Departamento: ").append(s(item.departamento())).append("\n")
+                    .append("Pastas as quais serão acessadas: ").append(s(e.pastas())).append("\n")
+                    .append("ID Team Viewer: ").append(s(e.teamViewer())).append("\n")
+                    .append("ID AnyDesk: ").append(s(e.anyDesk())).append("\n")
+                    .append("Quais programas necessitam ser instalados? ").append(s(e.programas())).append("\n")
+                    .append("Quais impressoras serão utilizadas? ").append(s(e.impressoras())).append("\n")
+                    .append("Login de referência: ").append(s(e.loginReferencia())).append("\n")
+                    .append(transferenciaMaquina(item.transferenciaDados()));
+            if (i < maquinas.size() - 1) {
+                sb.append("----------\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Formato antigo: um so bloco tecnico e uma so transferencia para todas as maquinas. */
+    private static String inclusaoAgregada(SolicitacaoRequest r) {
         List<MaquinaItem> m = safe(r.maquinas());
         EspecificacoesTecnicas e = espec(r);
         return "Eu, " + s(r.solicitante()) + ", solicito a inclusão de " + m.size()
@@ -48,13 +82,44 @@ public final class ComentarioBuilder {
     }
 
     private static String exclusao(SolicitacaoRequest r) {
-        String tags = safe(r.maquinas()).stream()
+        List<MaquinaItem> maquinas = safe(r.maquinas());
+        String tags = maquinas.stream()
                 .map(MaquinaItem::tag)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.joining(", "));
-        return "Eu, " + s(r.solicitante()) + ", solicito a exclusão da(s) seguinte(s) máquina(s) do contrato "
-                + "de gerenciamento da empresa " + s(r.empresa()) + ".\n\n"
-                + "Indique quais TAGS deverão ser excluídas: " + tags;
+
+        StringBuilder sb = new StringBuilder("Eu, ").append(s(r.solicitante()))
+                .append(", solicito a exclusão da(s) seguinte(s) máquina(s) do contrato ")
+                .append("de gerenciamento da empresa ").append(s(r.empresa())).append(".\n\n")
+                .append("Indique quais TAGS deverão ser excluídas: ").append(tags);
+
+        // Hostname/equCodigo so vem quando a maquina foi selecionada na tabela do PAG;
+        // observacoes so quando o usuario digitou. Sem nada disso, mantem o texto curto.
+        boolean temDetalhe = maquinas.stream().anyMatch(m ->
+                preenchido(m.observacoes()) || preenchido(m.hostname()) || preenchido(m.equCodigo()));
+        if (!temDetalhe) {
+            return sb.toString();
+        }
+
+        sb.append("\n\nDetalhes:\n\n");
+        for (int i = 0; i < maquinas.size(); i++) {
+            MaquinaItem m = maquinas.get(i);
+            sb.append("MÁQUINA ").append(i + 1).append("\n")
+                    .append("TAG: ").append(s(m.tag())).append("\n");
+            if (preenchido(m.hostname())) {
+                sb.append("Hostname: ").append(s(m.hostname())).append("\n");
+            }
+            if (preenchido(m.equCodigo())) {
+                sb.append("Código do equipamento: ").append(s(m.equCodigo())).append("\n");
+            }
+            if (preenchido(m.observacoes())) {
+                sb.append("Observações: ").append(s(m.observacoes())).append("\n");
+            }
+            if (i < maquinas.size() - 1) {
+                sb.append("----------\n");
+            }
+        }
+        return sb.toString();
     }
 
     private static String substituicao(SolicitacaoRequest r) {
@@ -68,19 +133,61 @@ public final class ComentarioBuilder {
             var a = sub.maquinaAntiga();
             var n = sub.maquinaNova();
             var nu = n == null ? null : n.novoUsuario();
-            sb.append("TAG: ").append(a == null ? "" : s(a.tag())).append("\n")
-                    .append("E-mail: ").append(a == null ? "" : s(a.emailUsuario())).append("\n")
+            sb.append("TAG: ").append(a == null ? "" : s(a.tag())).append("\n");
+            // Hostname/equCodigo so existem quando a maquina veio da tabela do PAG.
+            if (a != null && preenchido(a.hostname())) {
+                sb.append("Hostname: ").append(s(a.hostname())).append("\n");
+            }
+            if (a != null && preenchido(a.equCodigo())) {
+                sb.append("Código do equipamento: ").append(s(a.equCodigo())).append("\n");
+            }
+            sb.append("E-mail: ").append(a == null ? "" : s(a.emailUsuario())).append("\n")
                     .append("Departamento: ").append(a == null ? "" : s(a.departamento())).append("\n")
                     .append("AnyDesk nova: ").append(n == null ? "" : s(n.anyDesk())).append("\n")
-                    .append("Mesmo colaborador? ").append(n == null ? "" : String.valueOf(n.mesmoUsuario())).append("\n")
+                    .append("Mesmo colaborador? ")
+                    .append(n == null ? "" : (Boolean.TRUE.equals(n.mesmoUsuario()) ? "Sim" : "Não")).append("\n")
                     .append("Novo colaborador: ")
                     .append(nu == null ? "" : s(nu.nome()) + " - " + s(nu.email()) + " - " + s(nu.departamento()))
-                    .append("\n----------\n");
+                    .append("\n")
+                    .append(transferenciaSubstituicao(sub.transferenciaDados()))
+                    .append("----------\n");
         }
         return sb.toString();
     }
 
     private static String novoUsuario(SolicitacaoRequest r) {
+        List<MaquinaItem> maquinas = safe(r.maquinas());
+        if (maquinas.isEmpty()) {
+            return novoUsuarioAgregado(r);
+        }
+
+        StringBuilder sb = new StringBuilder("Eu, ").append(s(r.solicitante()))
+                .append(", solicito que seja criado perfil de usuário em ").append(maquinas.size())
+                .append(" máquina(s) gerenciada(s) da empresa ").append(s(r.empresa()))
+                .append(", conforme dados técnicos relacionados abaixo:\n\n");
+
+        for (int i = 0; i < maquinas.size(); i++) {
+            MaquinaItem m = maquinas.get(i);
+            EspecificacoesTecnicas e = m.especificacoesTecnicas() != null ? m.especificacoesTecnicas() : espec(r);
+            sb.append("MÁQUINA ").append(i + 1).append("\n")
+                    .append("Nome do usuário: ").append(s(m.nomeUsuario())).append("\n")
+                    .append("E-mail: ").append(s(m.email())).append("\n")
+                    .append("Departamento: ").append(s(m.departamento())).append("\n")
+                    .append("Pastas as quais serão acessadas: ").append(s(e.pastas())).append("\n")
+                    .append("ID Teamviewer: ").append(s(e.teamViewer())).append("\n")
+                    .append("AnyDesk: ").append(s(e.anyDesk())).append("\n")
+                    .append("Quais programas necessitam ser instalados? ").append(s(e.programas())).append("\n")
+                    .append("Quais impressoras serão utilizadas? ").append(s(e.impressoras())).append("\n")
+                    .append("Login de referência: ").append(s(e.loginReferencia())).append("\n");
+            if (i < maquinas.size() - 1) {
+                sb.append("----------\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Formato antigo: uma unica lista de nomes/e-mails e um so bloco tecnico para todas as maquinas. */
+    private static String novoUsuarioAgregado(SolicitacaoRequest r) {
         EspecificacoesTecnicas e = espec(r);
         return "Eu, " + s(r.solicitante()) + ", solicito que seja criado um perfil de usuário conforme "
                 + "dados técnicos relacionados abaixo:\n\n"
@@ -93,6 +200,32 @@ public final class ComentarioBuilder {
                 + "Quais programas necessitam ser instalados? " + s(e.programas()) + "\n"
                 + "Quais impressoras serão utilizadas? " + s(e.impressoras()) + "\n"
                 + "Login de referência: " + s(e.loginReferencia());
+    }
+
+    /**
+     * Transferencia de uma substituicao. A maquina de origem e a propria TAG antiga
+     * do bloco, entao aqui so entram os arquivos e programas informados.
+     */
+    private static String transferenciaSubstituicao(SolicitacaoRequest.TransferenciaDados t) {
+        if (t == null || !Boolean.TRUE.equals(t.necessaria())) {
+            return "Transferência de dados: Não\n";
+        }
+        return "Transferência de dados: Sim\n"
+                + "  Arquivos: " + s(t.arquivos()) + "\n"
+                + "  Programas: " + s(t.programas()) + "\n";
+    }
+
+    /** Bloco de transferencia de uma unica maquina, ja indentado sob o bloco dela. */
+    private static String transferenciaMaquina(SolicitacaoRequest.TransferenciaDados t) {
+        if (t == null || !Boolean.TRUE.equals(t.necessaria())) {
+            return "Transferência de dados: Não\n";
+        }
+        return "Transferência de dados: Sim\n"
+                + "  Máquina antiga: " + s(t.maquinaAntiga()) + "\n"
+                + "  Arquivos: " + s(t.arquivos()) + "\n"
+                + "  Programas: " + s(t.programas()) + "\n"
+                + "  Favoritos do navegador: " + (Boolean.TRUE.equals(t.favoritosNavegador()) ? "Sim" : "Não") + "\n"
+                + "  Assinaturas do Outlook: " + (Boolean.TRUE.equals(t.assinaturasOutlook()) ? "Sim" : "Não") + "\n";
     }
 
     private static String transferencia(SolicitacaoRequest r) {
@@ -121,6 +254,10 @@ public final class ComentarioBuilder {
 
     private static String s(String v) {
         return v == null ? "" : v;
+    }
+
+    private static boolean preenchido(String v) {
+        return v != null && !v.isBlank();
     }
 
     private static String coalesce(String preferido, String fallback) {

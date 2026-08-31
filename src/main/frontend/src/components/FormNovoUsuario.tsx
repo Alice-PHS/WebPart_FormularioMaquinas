@@ -2,9 +2,28 @@ import * as React from 'react';
 import { useState } from 'react';
 import { makeStyles, themes } from './formStyles';
 import { enviarSolicitacao } from '../services/solicitacoesService';
-import { isValidEmailList } from './validation';
+import { isValidEmail } from './validation';
 
 // Envio agora vai para o backend: POST /api/solicitacoes (via solicitacoesService).
+
+// Cada maquina carrega o conjunto completo de perguntas tecnicas (uma por maquina).
+interface MachineEntry {
+  userName: string;
+  email: string;
+  department: string;
+  folders: string;
+  teamViewerId: string;
+  anyDeskId: string;
+  programs: string;
+  printers: string;
+  referenceLogin: string;
+}
+
+const emptyMachine = (): MachineEntry => ({
+  userName: '', email: '', department: '',
+  folders: '', teamViewerId: '', anyDeskId: '',
+  programs: '', printers: '', referenceLogin: '',
+});
 
 export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitanteEmail }: { numeroChamado: string; nomeEmpresa: string; solicitanteEmail: string }) {
   const theme = themes.novoUsuario;
@@ -24,15 +43,7 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
     requesterName: '',
     companyName: nomeEmpresa || '',
     ticketNumber: numeroChamado || '',
-    userNames: '',
-    emails: '',
-    departments: '',
-    folders: '',
-    teamViewerId: '',
-    anyDeskId: '',
-    programs: '',
-    printers: '',
-    referenceLogin: '',
+    machines: [emptyMachine()] as MachineEntry[],
   });
 
   const update = (field: string, value: unknown) => {
@@ -40,14 +51,26 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
     if (showError) setShowError(false);
   };
 
+  const updateMachine = (i: number, field: keyof MachineEntry, value: string) => {
+    setFormData(p => ({ ...p, machines: p.machines.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)) }));
+    if (showError) setShowError(false);
+  };
+
+  const addMachine = () => setFormData(p => ({ ...p, machines: [...p.machines, emptyMachine()] }));
+
+  const removeMachine = (i: number) => {
+    if (formData.machines.length === 1) return;
+    setFormData(p => ({ ...p, machines: p.machines.filter((_, idx) => idx !== i) }));
+  };
+
   const validate = (s: number) => {
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
-    if (s === 3) return (
-      formData.userNames.trim() && formData.emails.trim() && isValidEmailList(formData.emails) && formData.departments.trim() &&
-      formData.folders.trim() && formData.anyDeskId.trim() &&
-      formData.programs.trim() && formData.referenceLogin.trim()
-    );
+    if (s === 3) return formData.machines.every(m => (
+      m.userName.trim() && m.email.trim() && isValidEmail(m.email) && m.department.trim() &&
+      m.folders.trim() && m.anyDeskId.trim() &&
+      m.programs.trim() && m.referenceLogin.trim()
+    ));
     return true;
   };
 
@@ -68,6 +91,9 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
   };
   const prev = () => { setShowError(false); setStep(s => s - 1); };
 
+  const joinField = (pick: (m: MachineEntry) => string) =>
+    formData.machines.map(pick).map(v => v.trim()).filter(Boolean).join(', ');
+
   const handleSubmit = async () => {
     const payload = {
       tipoFormulario: 'novoUsuario',
@@ -75,17 +101,23 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
       solicitanteEmail: solicitanteEmail,
       empresa: formData.companyName,
       numeroChamado: formData.ticketNumber,
-      usuarios: formData.userNames,
-      emails: formData.emails,
-      departamentos: formData.departments,
-      especificacoesTecnicas: {
-        pastas: formData.folders,
-        teamViewer: formData.teamViewerId,
-        anyDesk: formData.anyDeskId,
-        programas: formData.programs,
-        impressoras: formData.printers,
-        loginReferencia: formData.referenceLogin,
-      },
+      maquinas: formData.machines.map(m => ({
+        nomeUsuario: m.userName,
+        email: m.email,
+        departamento: m.department,
+        especificacoesTecnicas: {
+          pastas: m.folders,
+          teamViewer: m.teamViewerId,
+          anyDesk: m.anyDeskId,
+          programas: m.programs,
+          impressoras: m.printers,
+          loginReferencia: m.referenceLogin,
+        },
+      })),
+      // Strings agregadas mantidas para compatibilidade com consumidores do contrato antigo.
+      usuarios: joinField(m => m.userName),
+      emails: joinField(m => m.email),
+      departamentos: joinField(m => m.department),
     };
 
     setSubmitting(true);
@@ -189,61 +221,85 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
             {step === 3 && (
               <div>
                 <p style={S.sectionTitle}>Dados da(s) Inclusão(ões)</p>
-                <span style={S.sectionSub}>Forneça os dados técnicos necessários para a configuração.</span>
+                <span style={S.sectionSub}>Preencha os dados técnicos de cada máquina separadamente.</span>
 
-                <div style={S.group}>
-                  <label style={S.label}>Nome completo do(s) usuário(s) <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira o(s) nome(s) completo(s)" value={formData.userNames} onChange={e => update('userNames', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                </div>
-                <div style={S.group}>
-                  <label style={S.label}>E-mail(s) <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea
-                    style={{ ...S.textarea, minHeight: '56px', borderColor: showError && formData.emails.trim() && !isValidEmailList(formData.emails) ? '#ef4444' : undefined }}
-                    rows={2}
-                    placeholder="Insira o(s) e-mail(s), separados por vírgula caso haja mais de um"
-                    value={formData.emails}
-                    onChange={e => update('emails', e.target.value)}
-                    onFocus={inputFocus}
-                    onBlur={inputBlur}
-                  />
-                  {showError && formData.emails.trim() && !isValidEmailList(formData.emails) && (
-                    <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>Um ou mais e-mails informados são inválidos.</span>
-                  )}
-                </div>
-                <div style={S.group}>
-                  <label style={S.label}>Departamento(s) <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira o(s) departamento(s)" value={formData.departments} onChange={e => update('departments', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                </div>
-                <div style={S.group}>
-                  <label style={S.label}>Quais pastas serão acessadas na rede/nuvem? <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira sua resposta" value={formData.folders} onChange={e => update('folders', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                </div>
+                {formData.machines.map((m, i) => (
+                  <div key={i} style={S.itemCard}>
+                    <div style={S.itemCardHeader}>
+                      <span>💻 Máquina {i + 1}</span>
+                      {formData.machines.length > 1 && (
+                        <button onClick={() => removeMachine(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover máquina">🗑</button>
+                      )}
+                    </div>
+                    <div style={S.itemCardBody}>
 
-                <div style={S.grid2}>
-                  <div style={S.group}>
-                    <label style={S.label}>ID Team Viewer <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
-                    <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={formData.teamViewerId} onChange={e => update('teamViewerId', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                      <div style={{ ...S.group, marginBottom: '12px' }}>
+                        <label style={S.label}>Nome completo do usuário <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input style={S.input} type="text" placeholder="Ex: João da Silva" value={m.userName} onChange={e => updateMachine(i, 'userName', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+
+                      <div style={S.grid2}>
+                        <div style={S.group}>
+                          <label style={S.label}>E-mail <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input
+                            style={{ ...S.input, borderColor: showError && m.email.trim() && !isValidEmail(m.email) ? '#ef4444' : undefined }}
+                            type="email"
+                            placeholder="joao@empresa.com.br"
+                            value={m.email}
+                            onChange={e => updateMachine(i, 'email', e.target.value)}
+                            onFocus={inputFocus}
+                            onBlur={inputBlur}
+                          />
+                          {showError && m.email.trim() && !isValidEmail(m.email) && (
+                            <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                          )}
+                        </div>
+                        <div style={S.group}>
+                          <label style={S.label}>Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input style={S.input} type="text" placeholder="Ex: Financeiro" value={m.department} onChange={e => updateMachine(i, 'department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        </div>
+                      </div>
+
+                      <div style={S.group}>
+                        <label style={S.label}>Quais pastas serão acessadas na rede/nuvem? <span style={{ color: '#ef4444' }}>*</span></label>
+                        <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira sua resposta" value={m.folders} onChange={e => updateMachine(i, 'folders', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+
+                      <div style={S.grid2}>
+                        <div style={S.group}>
+                          <label style={S.label}>ID Team Viewer <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                          <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={m.teamViewerId} onChange={e => updateMachine(i, 'teamViewerId', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        </div>
+                        <div style={S.group}>
+                          <label style={S.label}>ID AnyDesk <span style={{ color: '#ef4444' }}>*</span></label>
+                          <input style={S.input} type="text" placeholder="Ex: 987 654 321" value={m.anyDeskId} onChange={e => updateMachine(i, 'anyDeskId', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                          <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
+                        </div>
+                      </div>
+
+                      <div style={S.group}>
+                        <label style={S.label}>Quais programas necessitam ser instalados? <span style={{ color: '#ef4444' }}>*</span></label>
+                        <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Emissor de NF, Certificados digitais..." value={m.programs} onChange={e => updateMachine(i, 'programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+
+                      <div style={S.group}>
+                        <label style={S.label}>Quais impressoras serão utilizadas?</label>
+                        <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira sua resposta" value={m.printers} onChange={e => updateMachine(i, 'printers', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+
+                      <div style={{ ...S.group, marginBottom: 0, background: theme.primaryLight, border: `1px solid ${theme.primaryLighter}`, borderRadius: '10px', padding: '1rem' }}>
+                        <label style={{ ...S.label, color: '#581c87' }}>Login de referência <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input style={S.input} type="text" placeholder="Ex: maria.silva" value={m.referenceLogin} onChange={e => updateMachine(i, 'referenceLogin', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                        <span style={{ ...S.helpText, color: '#7e22ce', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.3px' }}>Login de um colaborador no mesmo departamento para efeito de referenciamento.</span>
+                      </div>
+
+                    </div>
                   </div>
-                  <div style={S.group}>
-                    <label style={S.label}>ID AnyDesk <span style={{ color: '#ef4444' }}>*</span></label>
-                    <input style={S.input} type="text" placeholder="Ex: 987 654 321" value={formData.anyDeskId} onChange={e => update('anyDeskId', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                    <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
-                  </div>
-                </div>
+                ))}
 
-                <div style={S.group}>
-                  <label style={S.label}>Quais programas necessitam ser instalados? <span style={{ color: '#ef4444' }}>*</span></label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Emissor de NF, Certificados digitais..." value={formData.programs} onChange={e => update('programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                </div>
-                <div style={S.group}>
-                  <label style={S.label}>Quais impressoras serão utilizadas?</label>
-                  <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Insira sua resposta" value={formData.printers} onChange={e => update('printers', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                </div>
-                <div style={{ ...S.group, background: theme.primaryLight, border: `1px solid ${theme.primaryLighter}`, borderRadius: '10px', padding: '1rem' }}>
-                  <label style={{ ...S.label, color: '#581c87' }}>Login de referência <span style={{ color: '#ef4444' }}>*</span></label>
-                  <input style={S.input} type="text" placeholder="Ex: maria.silva" value={formData.referenceLogin} onChange={e => update('referenceLogin', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                  <span style={{ ...S.helpText, color: '#7e22ce', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.3px' }}>Login de um colaborador no mesmo departamento para efeito de referenciamento.</span>
-                </div>
+                <button style={S.btnAddMore} onClick={addMachine}>
+                  ＋ Adicionar mais uma máquina
+                </button>
               </div>
             )}
 
@@ -257,23 +313,26 @@ export default function FormNovoUsuario({ numeroChamado, nomeEmpresa, solicitant
                 </div>
 
                 <div style={S.reviewBox}>
-                  <div style={S.reviewHeader}>
+                  <div style={{ ...S.reviewHeader, gridTemplateColumns: 'repeat(4, 1fr)' }}>
                     <div><span style={S.reviewLabel}>Solicitante</span><span style={S.reviewValue}>{formData.requesterName}</span></div>
                     <div><span style={S.reviewLabel}>Empresa</span><span style={S.reviewValue}>{formData.companyName}</span></div>
                     <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
+                    <div><span style={S.reviewLabel}>Máquinas</span><span style={S.reviewValue}>{formData.machines.length}</span></div>
                   </div>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={S.reviewLabel}>Usuários</span>
-                    <span style={S.reviewValue}>{formData.userNames || '—'}</span>
-                  </div>
-                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                    <span style={S.reviewLabel}>E-mails</span>
-                    <span style={S.reviewValue}>{formData.emails || '—'}</span>
-                  </div>
-                  <div style={{ padding: '12px 16px' }}>
-                    <span style={S.reviewLabel}>Departamentos</span>
-                    <span style={S.reviewValue}>{formData.departments || '—'}</span>
-                  </div>
+                  {formData.machines.map((m, i) => (
+                    <div key={i} style={{ padding: '12px 16px', borderBottom: i < formData.machines.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      <span style={{ ...S.reviewLabel, color: theme.primary }}>💻 Máquina {i + 1}</span>
+                      <span style={S.reviewValue}>{m.userName || '—'}</span>
+                      <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px', lineHeight: 1.7 }}>
+                        <div>{m.email || '—'} · {m.department || '—'}</div>
+                        <div>AnyDesk: {m.anyDeskId || '—'}{m.teamViewerId ? ` · TeamViewer: ${m.teamViewerId}` : ''}</div>
+                        <div>Pastas: {m.folders || '—'}</div>
+                        <div>Programas: {m.programs || '—'}</div>
+                        <div>Impressoras: {m.printers || '—'}</div>
+                        <div>Login de referência: {m.referenceLogin || '—'}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* SUPPORT BOX */}

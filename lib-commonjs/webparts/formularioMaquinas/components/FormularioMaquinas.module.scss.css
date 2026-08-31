@@ -1,0 +1,206 @@
+/*
+  Your use of the content in the files referenced here is subject to the terms of the license at http://aka.ms/fabric-assets-license
+*/
+.formularioMaquinas {
+  overflow: hidden;
+  padding: 20px;
+  background-color: #edebe9;
+  min-height: 100vh;
+  color: "[theme:bodyText, default: #323130]";
+  --primary-color: #107c10;
+  --hover-color: #0b5a0b;
+  --bg-light: #f3f9f3;
+}
+.formularioMaquinas.tipoExclusao {
+  --primary-color: #d13438;
+  --hover-color: #a4262c;
+  --bg-light: #fdf3f4;
+}
+.formularioMaquinas.tipoSubstituicao {
+  --primary-color: #0078d4;
+  --hover-color: #005a9e;
+  --bg-light: #f3f8fc;
+}
+.formularioMaquinas.tipoNovoUsuario {
+  --primary-color: #c239b3;
+  --hover-color: #9d2b91;
+  --bg-light: #fdf2f9;
+}
+.formularioMaquinas.teams {
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", sans-serif;
+}
+.formularioMaquinas .formContainer {
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+.formularioMaquinas .headerCard {
+  background: white;
+  border-top: 10px solid var(--primary-color);
+  padding: 30px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.formularioMaquinas .sectionCard {
+  background: white;
+  padding: 25px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.formularioMaquinas .sectionTab {
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  background: #f3f2f1;
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+}
+.formularioMaquinas .logoPHS {
+  margin-bottom: 15px;
+}
+.formularioMaquinas .logoPHS img {
+  max-width: 150px;
+}
+.formularioMaquinas .title {
+  font-size: 24px;
+  color: #323130;
+  margin: 10px 0;
+}
+.formularioMaquinas .description {
+  font-size: 14px;
+  color: #605e5c;
+}
+.formularioMaquinas .greenTitle {
+  color: var(--primary-color);
+  font-size: 18px;
+  border-bottom: 1px solid #edebe9;
+  padding-bottom: 10px;
+  margin-top: 0;
+}
+.formularioMaquinas .importantBox {
+  background-color: var(--bg-light);
+  border-left: 5px solid var(--primary-color);
+  padding: 15px;
+  margin-bottom: 20px;
+}
+.formularioMaquinas .importantBox h3 {
+  color: var(--primary-color);
+  margin-top: 0;
+}
+.formularioMaquinas .questionGroup {
+  margin-bottom: 25px;
+}
+.formularioMaquinas .qLabel {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 10px;
+  display: block;
+}
+.formularioMaquinas .qNumber {
+  background: var(--primary-color);
+  color: white;
+  padding: 2px 8px;
+  margin-right: 10px;
+  font-size: 14px;
+  border-radius: 2px;
+}
+.formularioMaquinas .helpText {
+  font-size: 12px;
+  color: #605e5c;
+  margin-bottom: 8px;
+  display: block;
+}
+.formularioMaquinas .formInput {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #edebe9;
+  border-bottom: 1px solid #605e5c;
+  background: #f3f2f1;
+  box-sizing: border-box;
+}
+.formularioMaquinas .formInput:focus {
+  outline: none;
+  border-bottom: 2px solid var(--primary-color);
+}
+.formularioMaquinas .radioOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+.formularioMaquinas .radioOptions label {
+  cursor: pointer;
+  font-size: 14px;
+}
+.formularioMaquinas .btnSubmit {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+}
+.formularioMaquinas .btnSubmit:hover {
+  background-color: var(--hover-color);
+}
+.formularioMaquinas .btnSubmit:disabled {
+  background-color: #c8c6c4;
+  cursor: not-allowed;
+}
+.formularioMaquinas .navigationButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 20px;
+}
+.formularioMaquinas .btnVoltar {
+  background-color: #f3f2f1;
+  color: #323130;
+  padding: 12px 24px;
+  border: 1px solid #edebe9;
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+}
+.formularioMaquinas .btnVoltar:hover {
+  background-color: #edebe9;
+}
+.formularioMaquinas .btnAvancar {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+}
+.formularioMaquinas .btnAvancar:hover {
+  background-color: var(--hover-color);
+}
+.formularioMaquinas .menuPrincipal {
+  text-align: center;
+  padding: 40px;
+  background: white;
+  border-radius: 8px;
+}
+.formularioMaquinas .button, .formularioMaquinas .menuPrincipal button {
+  background-color: #0078d4;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  font-weight: 600;
+  margin: 5px;
+}
+.formularioMaquinas .button:hover, .formularioMaquinas .menuPrincipal button:hover {
+  background-color: #005a9e;
+}

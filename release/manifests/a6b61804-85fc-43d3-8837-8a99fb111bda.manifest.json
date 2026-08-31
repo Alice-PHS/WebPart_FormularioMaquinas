@@ -1,0 +1,79 @@
+{
+  "id": "a6b61804-85fc-43d3-8837-8a99fb111bda",
+  "alias": "FormularioMaquinasWebPart",
+  "componentType": "WebPart",
+  "version": "0.0.1",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+  "supportedHosts": [
+    "SharePointWebPart",
+    "TeamsPersonalApp",
+    "TeamsTab",
+    "SharePointFullPage"
+  ],
+  "supportsThemeVariants": true,
+  "preconfiguredEntries": [
+    {
+      "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+      "group": {
+        "default": "Advanced"
+      },
+      "title": {
+        "default": "FormularioMaquinas"
+      },
+      "description": {
+        "default": "FormularioMaquinas description"
+      },
+      "officeFabricIconFontName": "Page",
+      "properties": {
+        "description": "FormularioMaquinas"
+      }
+    }
+  ],
+  "loaderConfig": {
+    "internalModuleBaseUrls": [
+      "<!-- PATH TO CDN -->"
+    ],
+    "entryModuleId": "formulario-maquinas-web-part",
+    "scriptResources": {
+      "formulario-maquinas-web-part": {
+        "type": "path",
+        "path": "formulario-maquinas-web-part_3760e7c71114d0eb073a.js"
+      },
+      "react": {
+        "type": "component",
+        "id": "0d910c1c-13b9-4e1c-9aa4-b008c5e42d7d",
+        "version": "17.0.1"
+      },
+      "react-dom": {
+        "type": "component",
+        "id": "aa0a46ec-1505-43cd-a44a-93f3a5aa460a",
+        "version": "17.0.1"
+      },
+      "@microsoft/sp-core-library": {
+        "type": "component",
+        "id": "7263c7d0-1d6a-45ec-8d85-d4d1d234171b",
+        "version": "1.22.2"
+      },
+      "@microsoft/sp-property-pane": {
+        "type": "component",
+        "id": "f9e737b7-f0df-4597-ba8c-3060f82380db",
+        "version": "1.22.2"
+      },
+      "@microsoft/sp-webpart-base": {
+        "type": "component",
+        "id": "974a7777-0990-4136-8fa6-95d80114c2e0",
+        "version": "1.22.2"
+      },
+      "FormularioMaquinasWebPartStrings": {
+        "type": "path",
+        "path": "FormularioMaquinasWebPartStrings_en-us_3bd812ceda191f7235a1db0c41d7c3a7.js"
+      },
+      "@microsoft/sp-http": {
+        "type": "component",
+        "id": "c07208f0-ea3b-4c1a-9965-ac1b825211a6",
+        "version": "1.22.2"
+      }
+    }
+  }
+}

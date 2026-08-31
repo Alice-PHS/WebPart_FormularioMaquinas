@@ -21,9 +21,11 @@ const blankReplacement = (): Replacement => ({
 
 interface MaquinaLote { tag: string; hostname: string; equCodigo: number | null; departamento: string; }
 
-interface NewMachineShared { newAnyDesk: string; sameUser: boolean; newUser: NewUser; needsTransfer: boolean; transferDetails: TransferDetails; }
+// Dados da maquina nova. No modo lote existe um destes por maquina antiga,
+// mantido no mesmo indice de loteMaquinas.
+interface NewMachineData { newAnyDesk: string; sameUser: boolean; newUser: NewUser; needsTransfer: boolean; transferDetails: TransferDetails; }
 
-const blankNewMachineShared = (): NewMachineShared => ({
+const blankNewMachine = (): NewMachineData => ({
   newAnyDesk: '', sameUser: true, newUser: { name: '', email: '', department: '' }, needsTransfer: false, transferDetails: { files: '', programs: '' },
 });
 
@@ -56,16 +58,25 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
   const maquinaPreSelecionada = !isLote && !!(tag || hostname || equCodigo);
 
   const [loteMaquinas, setLoteMaquinas] = useState<MaquinaLote[]>(isLote ? maquinas as MaquinaLote[] : []);
-  const [loteNewMachine, setLoteNewMachine] = useState<NewMachineShared>(blankNewMachineShared());
+  // Uma maquina nova por maquina antiga do lote (mesmo indice).
+  const [loteNew, setLoteNew] = useState<NewMachineData[]>(
+    isLote ? (maquinas as MaquinaLote[]).map(() => blankNewMachine()) : []
+  );
 
   const removeLoteMaquina = (i: number) => {
     if (loteMaquinas.length === 1) return;
     setLoteMaquinas(prev => prev.filter((_, idx) => idx !== i));
+    setLoteNew(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const updateLoteNew = (field: string, value: unknown) => setLoteNewMachine(p => ({ ...p, [field]: value }));
-  const updateLoteNewUser = (field: string, value: string) => setLoteNewMachine(p => ({ ...p, newUser: { ...p.newUser, [field]: value } }));
-  const updateLoteTransfer = (field: string, value: string) => setLoteNewMachine(p => ({ ...p, transferDetails: { ...p.transferDetails, [field]: value } }));
+  const updateLoteNew = (i: number, field: keyof NewMachineData, value: unknown) =>
+    setLoteNew(prev => prev.map((n, idx) => (idx === i ? { ...n, [field]: value } : n)));
+
+  const updateLoteNewUser = (i: number, field: keyof NewUser, value: string) =>
+    setLoteNew(prev => prev.map((n, idx) => (idx === i ? { ...n, newUser: { ...n.newUser, [field]: value } } : n)));
+
+  const updateLoteTransfer = (i: number, field: keyof TransferDetails, value: string) =>
+    setLoteNew(prev => prev.map((n, idx) => (idx === i ? { ...n, transferDetails: { ...n.transferDetails, [field]: value } } : n)));
 
   const [formData, setFormData] = useState({
     agreed: null as boolean | null,
@@ -105,8 +116,8 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
     if (s === 1) return formData.agreed === true;
     if (s === 2) return formData.requesterName.trim();
     if (s === 3) return isLote
-      ? loteMaquinas.length > 0 && (loteNewMachine.sameUser || (
-        loteNewMachine.newUser.name.trim() && loteNewMachine.newUser.email.trim() && isValidEmail(loteNewMachine.newUser.email) && loteNewMachine.newUser.department.trim()
+      ? loteMaquinas.length > 0 && loteNew.every(n => n.sameUser || (
+        n.newUser.name.trim() && n.newUser.email.trim() && isValidEmail(n.newUser.email) && n.newUser.department.trim()
       ))
       : formData.replacements.every(r => {
         const oldOk = r.oldTag.trim() && r.oldEmail.trim() && isValidEmail(r.oldEmail) && r.oldDepartment.trim();
@@ -135,29 +146,32 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
 
   const handleSubmit = async () => {
     const substituicoes = isLote
-      ? loteMaquinas.map(m => ({
-        maquinaAntiga: {
-          tag: m.tag,
-          emailUsuario: '',
-          departamento: '',
-          hostname: m.hostname || '',
-          equCodigo: m.equCodigo !== null ? String(m.equCodigo) : '',
-        },
-        maquinaNova: {
-          anyDesk: loteNewMachine.newAnyDesk,
-          mesmoUsuario: loteNewMachine.sameUser,
-          novoUsuario: loteNewMachine.sameUser ? null : {
-            nome: loteNewMachine.newUser.name,
-            email: loteNewMachine.newUser.email,
-            departamento: loteNewMachine.newUser.department,
+      ? loteMaquinas.map((m, i) => {
+        const n = loteNew[i] || blankNewMachine();
+        return {
+          maquinaAntiga: {
+            tag: m.tag,
+            emailUsuario: '',
+            departamento: m.departamento || '',
+            hostname: m.hostname || '',
+            equCodigo: m.equCodigo !== null ? String(m.equCodigo) : '',
           },
-        },
-        transferenciaDados: {
-          necessaria: loteNewMachine.needsTransfer,
-          arquivos: loteNewMachine.transferDetails.files,
-          programas: loteNewMachine.transferDetails.programs,
-        },
-      }))
+          maquinaNova: {
+            anyDesk: n.newAnyDesk,
+            mesmoUsuario: n.sameUser,
+            novoUsuario: n.sameUser ? null : {
+              nome: n.newUser.name,
+              email: n.newUser.email,
+              departamento: n.newUser.department,
+            },
+          },
+          transferenciaDados: {
+            necessaria: n.needsTransfer,
+            arquivos: n.transferDetails.files,
+            programas: n.transferDetails.programs,
+          },
+        };
+      })
       : formData.replacements.map(r => ({
         maquinaAntiga: {
           tag: r.oldTag,
@@ -302,96 +316,112 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
 
                 {isLote ? (
                   <>
-                    <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '12px' }}>
-                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🖥 1. Máquinas que serão retiradas (Antigas) — {loteMaquinas.length}</p>
-                      {loteMaquinas.map((m, i) => (
-                        <div key={`${m.tag}-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', marginBottom: '8px' }}>
-                          <span style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}{m.hostname ? ` — ${m.hostname}` : ''}{m.departamento ? ` (${m.departamento})` : ''}</span>
-                          {loteMaquinas.length > 1 && (
-                            <button onClick={() => removeLoteMaquina(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
-                          )}
-                        </div>
-                      ))}
+                    <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', margin: '12px 0', fontSize: '13px', color: '#9a3412' }}>
+                      ℹ {loteMaquinas.length} máquinas selecionadas. Informe os dados da máquina nova de cada uma.
                     </div>
 
-                    {/* ARROW */}
-                    <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
-
-                    {/* NEW MACHINE (compartilhada para todas as máquinas do lote) */}
-                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
-                      <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
-
-                      <div style={S.group}>
-                        <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
-                        <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={loteNewMachine.newAnyDesk} onChange={e => updateLoteNew('newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                        <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
-                      </div>
-
-                      <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
-                        <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <button style={S.toggleBtn(loteNewMachine.sameUser)} onClick={() => updateLoteNew('sameUser', true)}>Sim, mesmo usuário</button>
-                          <button style={S.toggleBtn(!loteNewMachine.sameUser, '#d97706')} onClick={() => updateLoteNew('sameUser', false)}>Não, outro usuário</button>
-                        </div>
-
-                        {!loteNewMachine.sameUser && (
-                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                            <div style={S.grid3}>
-                              <div>
-                                <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input style={S.input} type="text" value={loteNewMachine.newUser.name} onChange={e => updateLoteNewUser('name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                    {loteMaquinas.map((m, i) => {
+                      const n = loteNew[i] || blankNewMachine();
+                      return (
+                        <div key={`${m.tag}-${i}`} style={S.itemCard}>
+                          <div style={S.itemCardHeader}>
+                            <span>🔄 Troca {i + 1}</span>
+                            {loteMaquinas.length > 1 && (
+                              <button onClick={() => removeLoteMaquina(i)} style={{ ...S.iconBtn, color: '#ef4444' }} title="Remover">🗑</button>
+                            )}
+                          </div>
+                          <div style={S.itemCardBody}>
+                            {/* OLD MACHINE — vem da tabela, somente leitura */}
+                            <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '8px' }}>
+                              <p style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>🖥 1. Máquina que será retirada (Antiga)</p>
+                              <div style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}</div>
+                              <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                {m.hostname || '—'}{m.departamento ? ` · ${m.departamento}` : ''}
                               </div>
-                              <div>
-                                <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input
-                                  style={{ ...S.input, borderColor: showError && loteNewMachine.newUser.email.trim() && !isValidEmail(loteNewMachine.newUser.email) ? '#ef4444' : undefined }}
-                                  type="email"
-                                  value={loteNewMachine.newUser.email}
-                                  onChange={e => updateLoteNewUser('email', e.target.value)}
-                                  onFocus={inputFocus}
-                                  onBlur={inputBlur}
-                                />
-                                {showError && loteNewMachine.newUser.email.trim() && !isValidEmail(loteNewMachine.newUser.email) && (
-                                  <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                            </div>
+
+                            {/* ARROW */}
+                            <div style={{ textAlign: 'center', padding: '4px 0', color: '#94a3b8', fontSize: '20px' }}>↓</div>
+
+                            {/* NEW MACHINE */}
+                            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                              <p style={{ fontSize: '12px', fontWeight: 700, color: '#14532d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>💻 2. Máquina que entrará no lugar (Nova)</p>
+
+                              <div style={S.group}>
+                                <label style={S.label}>AnyDesk da Máquina Nova <span style={{ color: '#94a3b8', fontWeight: 400 }}>(Opcional)</span></label>
+                                <input style={S.input} type="text" placeholder="Ex: 123 456 789" value={n.newAnyDesk} onChange={e => updateLoteNew(i, 'newAnyDesk', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                <span style={S.helpText}><a href="https://anydesk.com/pt/downloads" target="_blank" rel="noopener noreferrer" style={{ color: theme.primary }}>Baixar AnyDesk →</a></span>
+                              </div>
+
+                              <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem', marginBottom: '10px' }}>
+                                <label style={{ ...S.label, marginBottom: '10px' }}>A máquina nova será destinada ao mesmo colaborador? <span style={{ color: '#ef4444' }}>*</span></label>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                  <button style={S.toggleBtn(n.sameUser)} onClick={() => updateLoteNew(i, 'sameUser', true)}>Sim, mesmo usuário</button>
+                                  <button style={S.toggleBtn(!n.sameUser, '#d97706')} onClick={() => updateLoteNew(i, 'sameUser', false)}>Não, outro usuário</button>
+                                </div>
+
+                                {!n.sameUser && (
+                                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                                    <div style={S.grid3}>
+                                      <div>
+                                        <label style={S.label}>Nome Completo <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <input style={S.input} type="text" value={n.newUser.name} onChange={e => updateLoteNewUser(i, 'name', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                      </div>
+                                      <div>
+                                        <label style={S.label}>Novo E-mail <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <input
+                                          style={{ ...S.input, borderColor: showError && n.newUser.email.trim() && !isValidEmail(n.newUser.email) ? '#ef4444' : undefined }}
+                                          type="email"
+                                          value={n.newUser.email}
+                                          onChange={e => updateLoteNewUser(i, 'email', e.target.value)}
+                                          onFocus={inputFocus}
+                                          onBlur={inputBlur}
+                                        />
+                                        {showError && n.newUser.email.trim() && !isValidEmail(n.newUser.email) && (
+                                          <span style={{ fontSize: '12px', color: '#ef4444', marginTop: '4px', display: 'block' }}>E-mail inválido.</span>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <input style={S.input} type="text" value={n.newUser.department} onChange={e => updateLoteNewUser(i, 'department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                              <div>
-                                <label style={S.label}>Novo Departamento <span style={{ color: '#ef4444' }}>*</span></label>
-                                <input style={S.input} type="text" value={loteNewMachine.newUser.department} onChange={e => updateLoteNewUser('department', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
 
-                      {/* TRANSFER TOGGLE */}
-                      <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: loteNewMachine.needsTransfer ? '12px' : '0' }}>
-                          <div>
-                            <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados das antigas?</span>
-                            <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
-                          </div>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: loteNewMachine.needsTransfer ? theme.primary : '#64748b' }}>
-                            <input type="checkbox" checked={loteNewMachine.needsTransfer} onChange={e => updateLoteNew('needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
-                            {loteNewMachine.needsTransfer ? 'Sim' : 'Não'}
-                          </label>
-                        </div>
-                        {loteNewMachine.needsTransfer && (
-                          <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-                            <div style={S.grid2}>
-                              <div>
-                                <label style={S.label}>Pastas / Arquivos específicos</label>
-                                <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={loteNewMachine.transferDetails.files} onChange={e => updateLoteTransfer('files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
-                              </div>
-                              <div>
-                                <label style={S.label}>Softwares / Configurações</label>
-                                <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={loteNewMachine.transferDetails.programs} onChange={e => updateLoteTransfer('programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                              {/* TRANSFER TOGGLE */}
+                              <div style={{ background: '#fff', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: n.needsTransfer ? '12px' : '0' }}>
+                                  <div>
+                                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#374151' }}>Necessita transferir dados da antiga?</span>
+                                    <span style={{ display: 'block', fontSize: '12px', color: '#94a3b8' }}>Arquivos, configurações, favoritos, etc.</span>
+                                  </div>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500, color: n.needsTransfer ? theme.primary : '#64748b' }}>
+                                    <input type="checkbox" checked={n.needsTransfer} onChange={e => updateLoteNew(i, 'needsTransfer', e.target.checked)} style={{ accentColor: theme.primary, width: '16px', height: '16px' }} />
+                                    {n.needsTransfer ? 'Sim' : 'Não'}
+                                  </label>
+                                </div>
+                                {n.needsTransfer && (
+                                  <div style={{ paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+                                    <div style={S.grid2}>
+                                      <div>
+                                        <label style={S.label}>Pastas / Arquivos específicos</label>
+                                        <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: C:\Sistemas, Meus Documentos..." value={n.transferDetails.files} onChange={e => updateLoteTransfer(i, 'files', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                      </div>
+                                      <div>
+                                        <label style={S.label}>Softwares / Configurações</label>
+                                        <textarea style={{ ...S.textarea, minHeight: '56px' }} rows={2} placeholder="Ex: Certificados, Favoritos Chrome..." value={n.transferDetails.programs} onChange={e => updateLoteTransfer(i, 'programs', e.target.value)} onFocus={inputFocus} onBlur={inputBlur} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+                      );
+                    })}
                   </>
                 ) : (
                   <>
@@ -537,21 +567,24 @@ export default function FormSubstituicao({ numeroChamado, nomeEmpresa, solicitan
                     <div><span style={S.reviewLabel}>Chamado</span><span style={S.reviewValue}>#{formData.ticketNumber}</span></div>
                   </div>
                   {isLote
-                    ? loteMaquinas.map((m, i) => (
-                      <div key={`${m.tag}-${i}`} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
-                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}</div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>{m.hostname}</div>
+                    ? loteMaquinas.map((m, i) => {
+                      const n = loteNew[i] || blankNewMachine();
+                      return (
+                        <div key={`${m.tag}-${i}`} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ ...S.reviewLabel, color: '#dc2626' }}>Sai</span>
+                            <div style={{ fontWeight: 700, color: '#1e293b' }}>{m.tag || 'Sem TAG'}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>{m.hostname}</div>
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
+                            <div style={{ fontWeight: 700, color: '#1e293b' }}>{n.sameUser ? 'Mesmo Usuário' : n.newUser.name}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>AnyDesk: {n.newAnyDesk || '—'} · Transf. Dados: {n.needsTransfer ? 'Sim' : 'Não'}</div>
+                          </div>
                         </div>
-                        <div style={{ color: '#94a3b8', fontSize: '20px' }}>→</div>
-                        <div style={{ flex: 1 }}>
-                          <span style={{ ...S.reviewLabel, color: '#16a34a' }}>Entra</span>
-                          <div style={{ fontWeight: 700, color: '#1e293b' }}>{loteNewMachine.sameUser ? 'Mesmo Usuário' : loteNewMachine.newUser.name}</div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8' }}>Transf. Dados: {loteNewMachine.needsTransfer ? 'Sim' : 'Não'}</div>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                     : formData.replacements.map((rep, i) => (
                       <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '24px', alignItems: 'center' }}>
                         <div style={{ flex: 1 }}>
