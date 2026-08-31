@@ -2,6 +2,8 @@ package com.phsbrasil.formulariomaquinas.Auth;
 
 import com.phsbrasil.formulariomaquinas.Auth.dto.AlterarSenhaRequest;
 import com.phsbrasil.formulariomaquinas.Auth.dto.LoginRequest;
+import com.phsbrasil.formulariomaquinas.Auth.dto.RecuperarSenhaRequest;
+import com.phsbrasil.formulariomaquinas.Auth.dto.RedefinirSenhaRequest;
 import com.phsbrasil.formulariomaquinas.Auth.dto.RegisterRequest;
 import com.phsbrasil.formulariomaquinas.Auth.dto.TokenResponse;
 import com.phsbrasil.formulariomaquinas.Auth.dto.UsuarioResponse;
@@ -18,19 +20,23 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Porta do Controllers/AuthController.cs do Pagina-PHS-Clube.
  *
- *  POST /api/auth/login          -> { access_token, token_type, expires_in }   (publico)
- *  POST /api/auth/register       -> 201                                        (publico)
- *  POST /api/auth/alterar-senha  -> 200                                        (exige Bearer)
- *  GET  /api/auth/me             -> { id, email, nome, roles }                 (exige Bearer)
+ *  POST /api/auth/login             -> { access_token, token_type, expires_in }   (publico)
+ *  POST /api/auth/register          -> 201                                        (publico)
+ *  POST /api/auth/recuperar-senha   -> 204                                        (publico)
+ *  POST /api/auth/redefinir-senha   -> 204                                        (publico, exige token do e-mail)
+ *  POST /api/auth/alterar-senha     -> 200                                        (exige Bearer)
+ *  GET  /api/auth/me                -> { id, email, nome, roles }                 (exige Bearer)
  */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, PasswordResetService passwordResetService) {
         this.authService = authService;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/login")
@@ -49,6 +55,33 @@ public class AuthController {
             authService.registrar(req);
         } catch (AuthService.EmailJaCadastradoException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Um usuario com esse e-mail ja existe.");
+        }
+    }
+
+    /**
+     * Dispara o e-mail com o link de redefinicao.
+     *
+     * Responde 204 sempre, mesmo quando o e-mail nao tem conta: qualquer
+     * diferenca de resposta permitiria descobrir quem esta cadastrado.
+     */
+    @PostMapping("/recuperar-senha")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void recuperarSenha(@RequestBody RecuperarSenhaRequest req) {
+        passwordResetService.solicitar(req.email());
+    }
+
+    /** Troca a senha usando o token de uso unico recebido por e-mail. */
+    @PostMapping("/redefinir-senha")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void redefinirSenha(@RequestBody RedefinirSenhaRequest req) {
+        try {
+            passwordResetService.redefinir(req.token(), req.novaSenha());
+        } catch (PasswordResetService.SenhaFracaException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "A senha precisa ter pelo menos 8 caracteres.");
+        } catch (PasswordResetService.TokenInvalidoException e) {
+            throw new ResponseStatusException(HttpStatus.GONE,
+                    "Este link expirou ou ja foi usado. Peca a recuperacao de novo.");
         }
     }
 

@@ -25,3 +25,21 @@ export function capturarEntradaFormulario(): void {
 export function lerEntradaFormulario(): string {
   return entrada;
 }
+
+/**
+ * Token de recuperacao de senha (?token=...), vindo do link do e-mail.
+ *
+ * Le da mesma copia em memoria que o formulario usa, e nao de
+ * window.location: a URL ja foi limpa no boot por capturarEntradaFormulario().
+ */
+export function lerTokenRecuperacao(): string {
+  return new URLSearchParams(entrada).get('token') ?? '';
+}
+
+/** Descarta o token apos o uso, para ele nao reaparecer ao voltar para o login. */
+export function limparTokenRecuperacao(): void {
+  const params = new URLSearchParams(entrada);
+  params.delete('token');
+  const resto = params.toString();
+  entrada = resto ? `?${resto}` : '';
+}

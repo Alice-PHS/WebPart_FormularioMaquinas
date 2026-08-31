@@ -6,9 +6,11 @@ import { login } from './authClient';
 export default function LoginScreen({
   onLoggedIn,
   onIrParaCadastro,
+  onIrParaRecuperacao,
 }: {
   onLoggedIn: () => void;
   onIrParaCadastro: () => void;
+  onIrParaRecuperacao: () => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -85,7 +87,11 @@ export default function LoginScreen({
           styles={{ root: { width: '100%', marginTop: 20 } }}
         />
 
-        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: '#64748b' }}>
+        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13 }}>
+          <Link onClick={onIrParaRecuperacao} styles={{ root: { fontWeight: 600 } }}>Esqueci minha senha</Link>
+        </div>
+
+        <div style={{ marginTop: 12, textAlign: 'center', fontSize: 13, color: '#64748b' }}>
           Nao tem conta? <Link onClick={onIrParaCadastro} styles={{ root: { fontWeight: 600 } }}>Criar conta</Link>
         </div>
       </form>

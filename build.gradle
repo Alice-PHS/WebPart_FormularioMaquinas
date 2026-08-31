@@ -17,6 +17,11 @@ tasks.register('npmBuild', com.github.gradle.node.npm.task.NpmTask) {
 	args = ['run', 'build']
 	inputs.dir('src/main/frontend/src')
 	inputs.file('src/main/frontend/package.json')
+	// Sem estes, mexer no index.html, no favicon ou na config do Vite deixa a
+	// tarefa "up-to-date" e o build sai com o front antigo, sem avisar.
+	inputs.file('src/main/frontend/index.html')
+	inputs.file('src/main/frontend/vite.config.ts')
+	inputs.dir('src/main/frontend/public')
 	outputs.dir('src/main/frontend/build')
 }
 

@@ -70,6 +70,49 @@ export async function register(nome: string, email: string, senha: string): Prom
   if (!res.ok) throw new Error('Nao foi possivel criar a conta. Tente novamente.');
 }
 
+/**
+ * POST /api/auth/recuperar-senha -> dispara o e-mail com o link.
+ *
+ * O backend responde 204 mesmo quando o e-mail nao tem conta (de proposito,
+ * para nao revelar quem esta cadastrado), entao a tela sempre mostra a mesma
+ * mensagem em caso de sucesso.
+ */
+export async function solicitarRecuperacao(email: string): Promise<void> {
+  const res = await fetch(apiUrl('/api/auth/recuperar-senha'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) throw new Error('Nao foi possivel enviar o e-mail. Tente novamente.');
+}
+
+/**
+ * Link de recuperacao vencido ou ja usado (HTTP 410).
+ *
+ * Tem classe propria porque a tela reage diferente: nao adianta mostrar o erro
+ * no formulario, o caminho e pedir um link novo.
+ */
+export class LinkExpiradoError extends Error {
+  constructor() {
+    super('Este link expirou ou ja foi usado.');
+    this.name = 'LinkExpiradoError';
+  }
+}
+
+/** POST /api/auth/redefinir-senha -> troca a senha usando o token do e-mail. */
+export async function redefinirSenha(token: string, novaSenha: string): Promise<void> {
+  const res = await fetch(apiUrl('/api/auth/redefinir-senha'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, novaSenha }),
+  });
+
+  if (res.status === 400) throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  if (res.status === 410) throw new LinkExpiradoError();
+  if (!res.ok) throw new Error('Nao foi possivel redefinir a senha. Tente novamente.');
+}
+
 /** GET /api/auth/me -> usuario logado, ou null se o token nao vale mais. */
 export async function me(): Promise<Usuario | null> {
   if (!getToken()) return null;
